@@ -6,10 +6,12 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN
+from homeassistant.const import EntityCategory
+from .const import DOMAIN, ANIMATION_MODES, COLOR_MODES
 from .entity import IDotMatrixEntity
 from .client.modules.clock import Clock
 from .client.modules.effect import Effect
+import os
 
 CLOCK_STYLES = [
     "Default", "Christmas", "Racing", "Inverted Full Screen",
@@ -57,8 +59,7 @@ class IDotMatrixClockFace(IDotMatrixEntity, SelectEntity):
             self._attr_current_option = option
             self.async_write_ha_state()
 
-from .const import ANIMATION_MODES, COLOR_MODES
-import os
+
 
 class IDotMatrixFont(IDotMatrixEntity, SelectEntity):
     """Selector for Text Font."""
