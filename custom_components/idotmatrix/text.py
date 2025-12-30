@@ -110,14 +110,25 @@ class IDotMatrixText(IDotMatrixEntity, TextEntity):
             if not word: return 0
             # Width is sum of chars + spacing
             w = 0
-            for char in word:
+            for i, char in enumerate(word):
                 bbox = font.getbbox(char)
-                w += (bbox[2] - bbox[0]) + spacing
-            return w - spacing # Remove last spacing
+                char_w = (bbox[2] - bbox[0]) if bbox else font.getlength(char)
+                w += char_w + spacing
+            return w - spacing # Remove last spacing if > 0
 
-        # Space width
-        space_bbox = font.getbbox(" ")
-        space_width = (space_bbox[2] - space_bbox[0]) + spacing
+        # Space width calculation
+        try:
+             space_bbox = font.getbbox(" ")
+             if space_bbox:
+                 space_w = space_bbox[2] - space_bbox[0]
+             else:
+                 space_w = font.getlength(" ") # Fallback if bbox is empty
+        except:
+             space_w = 4 # Hard fallback
+             
+        space_width = space_w + spacing
+        # Ensure space has noticeable width even if spacing is negative
+        if space_width < 1: space_width = 1
 
         current_line_width = 0
         
@@ -132,10 +143,12 @@ class IDotMatrixText(IDotMatrixEntity, TextEntity):
                 # Flush current line
                 if current_line:
                     lines.append(current_line)
+                    current_line = []
+                    current_line_width = 0
                 
-                # Check if word is longer than screen (force split?)
-                # For now, just put on new line even if it clips
-                current_line = [word]
+                # Check if single word is longer than screen
+                # Just add it, it will clip or wrap in future if we improved algo
+                current_line.append(word)
                 current_line_width = word_width + space_width
         
         if current_line:
@@ -161,7 +174,8 @@ class IDotMatrixText(IDotMatrixEntity, TextEntity):
                     if x >= screen_size: break
                     draw.text((x, y), char, font=font, fill=color)
                     bbox = font.getbbox(char)
-                    x += (bbox[2] - bbox[0]) + spacing
+                    char_w = (bbox[2] - bbox[0]) if bbox else font.getlength(char)
+                    x += char_w + spacing
                 
                 # Draw space after word (except last word)
                 if i < len(line_words) - 1:

@@ -52,7 +52,7 @@ class IDotMatrixTextSpacing(IDotMatrixEntity, NumberEntity):
 
     _attr_icon = "mdi:arrow-expand-horizontal"
     _attr_name = "Text Horizontal Spacing"
-    _attr_native_min_value = 0
+    _attr_native_min_value = -8
     _attr_native_max_value = 20
     _attr_native_step = 1
     _attr_entity_category = EntityCategory.CONFIG
@@ -76,7 +76,7 @@ class IDotMatrixTextSpacingVertical(IDotMatrixEntity, NumberEntity):
 
     _attr_icon = "mdi:arrow-expand-vertical"
     _attr_name = "Text Vertical Spacing"
-    _attr_native_min_value = 0
+    _attr_native_min_value = -8
     _attr_native_max_value = 20
     _attr_native_step = 1
     _attr_entity_category = EntityCategory.CONFIG
