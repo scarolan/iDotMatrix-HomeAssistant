@@ -22,7 +22,31 @@ async def async_setup_entry(
         IDotMatrixTextSpacing(coordinator, entry),
         IDotMatrixTextSpacingVertical(coordinator, entry),
         IDotMatrixTextBlur(coordinator, entry),
+        IDotMatrixTextFontSize(coordinator, entry),
     ])
+
+class IDotMatrixTextFontSize(IDotMatrixEntity, NumberEntity):
+    """Representation of the Text Font Size control."""
+
+    _attr_icon = "mdi:format-size"
+    _attr_name = "Text Font Size"
+    _attr_native_min_value = 6
+    _attr_native_max_value = 64
+    _attr_native_step = 1
+    _attr_entity_category = EntityCategory.CONFIG
+    
+    @property
+    def unique_id(self) -> str:
+        return f"{self._mac}_text_font_size"
+
+    @property
+    def native_value(self) -> float | None:
+        return self.coordinator.text_settings.get("font_size", 10)
+
+    async def async_set_native_value(self, value: float) -> None:
+        """Set the value."""
+        self.coordinator.text_settings["font_size"] = int(value)
+        self.async_write_ha_state()
 
 class IDotMatrixTextBlur(IDotMatrixEntity, NumberEntity):
     """Representation of the Text Blur control."""

@@ -54,7 +54,7 @@ class IDotMatrixText(IDotMatrixEntity, TextEntity):
             else:
                 await Text().setMode(
                     text=value,
-                    font_size=16, 
+                    font_size=int(settings.get("font_size", 10)), 
                     font_path=settings.get("font"),
                     text_mode=settings.get("animation_mode", 1),
                     speed=settings.get("speed", 80),
@@ -88,13 +88,8 @@ class IDotMatrixText(IDotMatrixEntity, TextEntity):
             elif os.path.exists(font_name):
                 font_path = font_name
                 
-        # Determine font size based on screen size
-        if screen_size == 16:
-             font_size = 8
-        elif screen_size == 64:
-             font_size = 16 # Or maybe larger? 20? Let's try 16 for better density
-        else:
-             font_size = 10 # Default for 32x32
+        # Determine font size
+        font_size = int(settings.get("font_size", 10))
 
         try:
             font = ImageFont.truetype(font_path, font_size)
