@@ -57,14 +57,8 @@ class IDotMatrixClockFormat(IDotMatrixEntity, SelectEntity):
         self.coordinator.text_settings["clock_format"] = option
         self._attr_current_option = option
         
-        # Update clock immediately
-        s = self.coordinator.text_settings
-        color = s.get("color", [255, 255, 255])
-        style = s.get("clock_style", 0)
-        show_date = s.get("clock_date", True)
-        h24 = option == "24h"
-        
-        await Clock().setMode(style, show_date, h24, color[0], color[1], color[2])
+        # Update clock immediately via coordinator logic
+        await self.coordinator.async_update_device()
         self.async_write_ha_state()
 
 class IDotMatrixClockFace(IDotMatrixEntity, SelectEntity):
@@ -105,6 +99,7 @@ class IDotMatrixScreenSize(IDotMatrixEntity, SelectEntity):
              
         self.coordinator.text_settings["screen_size"] = size
         self._attr_current_option = option
+        await self.coordinator.async_update_device()
         self.async_write_ha_state()
     _attr_options = CLOCK_STYLES
     _attr_name = "Clock Face"
@@ -122,14 +117,10 @@ class IDotMatrixScreenSize(IDotMatrixEntity, SelectEntity):
             idx = CLOCK_STYLES.index(option)
             self.coordinator.text_settings["clock_style"] = idx
             
-            # Retrieve shared settings
-            s = self.coordinator.text_settings
-            color = s.get("color", [255, 255, 255])
-            r, g, b = color[0], color[1], color[2]
-            show_date = s.get("clock_date", True)
-            h24 = s.get("clock_format", "24h") == "24h"
+            # Use this action to CLEAR text and switch to clock
+            self.coordinator.text_settings["current_text"] = ""
             
-            await Clock().setMode(idx, show_date, h24, r, g, b)
+            await self.coordinator.async_update_device()
             self._attr_current_option = option
             self.async_write_ha_state()
 
@@ -173,6 +164,7 @@ class IDotMatrixFont(IDotMatrixEntity, SelectEntity):
         """Select font."""
         self.coordinator.text_settings["font"] = option
         self._attr_current_option = option
+        await self.coordinator.async_update_device()
         self.async_write_ha_state()
 
 class IDotMatrixTextAnimation(IDotMatrixEntity, SelectEntity):
@@ -199,6 +191,7 @@ class IDotMatrixTextAnimation(IDotMatrixEntity, SelectEntity):
         """Select animation."""
         self.coordinator.text_settings["animation_mode"] = ANIMATION_MODES[option]
         self._attr_current_option = option
+        await self.coordinator.async_update_device()
         self.async_write_ha_state()
 
 class IDotMatrixTextColorMode(IDotMatrixEntity, SelectEntity):
@@ -224,4 +217,5 @@ class IDotMatrixTextColorMode(IDotMatrixEntity, SelectEntity):
         """Select color mode."""
         self.coordinator.text_settings["color_mode"] = COLOR_MODES[option]
         self._attr_current_option = option
+        await self.coordinator.async_update_device()
         self.async_write_ha_state()

@@ -46,6 +46,7 @@ class IDotMatrixTextFontSize(IDotMatrixEntity, NumberEntity):
     async def async_set_native_value(self, value: float) -> None:
         """Set the value."""
         self.coordinator.text_settings["font_size"] = int(value)
+        await self.coordinator.async_update_device()
         self.async_write_ha_state()
 
 class IDotMatrixTextBlur(IDotMatrixEntity, NumberEntity):
@@ -69,6 +70,7 @@ class IDotMatrixTextBlur(IDotMatrixEntity, NumberEntity):
     async def async_set_native_value(self, value: float) -> None:
         """Set the value."""
         self.coordinator.text_settings["blur"] = int(value)
+        await self.coordinator.async_update_device()
         self.async_write_ha_state()
 
 class IDotMatrixTextSpeed(IDotMatrixEntity, NumberEntity):
@@ -93,6 +95,7 @@ class IDotMatrixTextSpeed(IDotMatrixEntity, NumberEntity):
     async def async_set_native_value(self, value: float) -> None:
         """Set the value."""
         self.coordinator.text_settings["speed"] = int(value)
+        await self.coordinator.async_update_device()
         self.async_write_ha_state()
 
 class IDotMatrixTextSpacing(IDotMatrixEntity, NumberEntity):
@@ -117,6 +120,7 @@ class IDotMatrixTextSpacing(IDotMatrixEntity, NumberEntity):
     async def async_set_native_value(self, value: float) -> None:
         """Set the value."""
         self.coordinator.text_settings["spacing"] = int(value)
+        await self.coordinator.async_update_device()
         self.async_write_ha_state()
 
 class IDotMatrixTextSpacingVertical(IDotMatrixEntity, NumberEntity):
@@ -140,4 +144,5 @@ class IDotMatrixTextSpacingVertical(IDotMatrixEntity, NumberEntity):
     async def async_set_native_value(self, value: float) -> None:
         """Set the value."""
         self.coordinator.text_settings["spacing_y"] = int(value)
+        await self.coordinator.async_update_device()
         self.async_write_ha_state()

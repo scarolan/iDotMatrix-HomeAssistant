@@ -78,16 +78,8 @@ class IDotMatrixLight(IDotMatrixEntity, LightEntity):
             rgb = kwargs[ATTR_RGB_COLOR]
             self.coordinator.text_settings["color"] = list(rgb)
             
-            # Send color update immediately to Clock
-            # We assume user wants to see the color change now.
-            # Ideally we would only update if in Clock mode, but we default to updating Clock.
-            s = self.coordinator.text_settings
-            style = s.get("clock_style", 0)
-            show_date = s.get("clock_date", True)
-            h24 = s.get("clock_format", "24h") == "24h"
-            
-            from .client.modules.clock import Clock
-            await Clock().setMode(style, show_date, h24, rgb[0], rgb[1], rgb[2])
+            # Send color update immediately (resends Text or Clock based on state)
+            await self.coordinator.async_update_device()
             
         self.async_write_ha_state()
 
