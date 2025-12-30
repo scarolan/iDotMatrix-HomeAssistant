@@ -77,9 +77,11 @@ class IDotMatrixScreenSize(IDotMatrixEntity, SelectEntity):
         # Map option string to index
         if option in CLOCK_STYLES:
             idx = CLOCK_STYLES.index(option)
-            # Defaults: show_date=True, show_24hr=True, color=White
-            # Future: make these configurable
-            await Clock().setMode(idx, True, True, 255, 255, 255)
+            # Retrieve shared color
+            color = self.coordinator.text_settings.get("color", [255, 255, 255])
+            r, g, b = color[0], color[1], color[2]
+            
+            await Clock().setMode(idx, True, True, r, g, b)
             self._attr_current_option = option
             self.async_write_ha_state()
 

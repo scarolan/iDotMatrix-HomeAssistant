@@ -40,7 +40,9 @@ class IDotMatrixCoordinator(DataUpdateCoordinator):
             "spacing": 1,         # Spacing between letters (pixels)
             "proportional": True, # Use proportional font rendering
             "multiline": False,   # Wrap text as image
+            "multiline": False,   # Wrap text as image
             "screen_size": 32,    # 32x32 or 16x16
+            "brightness": 128,    # 0-255 (mapped to 5-100)
         }
 
     async def _async_update_data(self):
