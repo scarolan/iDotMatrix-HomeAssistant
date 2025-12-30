@@ -5,8 +5,8 @@ Library to configure any iDotMatrix compatible 16x16 or 32x32 pixel display with
 """
 
 from .version import __version__
-from idotmatrix import logger
-from idotmatrix.connectionManager import ConnectionManager
+from . import logger
+from .connectionManager import ConnectionManager
 from .modules.clock import Clock
 from .modules.chronograph import Chronograph
 from .modules.common import Common

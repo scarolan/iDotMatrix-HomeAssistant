@@ -1,4 +1,4 @@
-from idotmatrix import logger
+from . import logger
 
 
 class Idotmatrix:
