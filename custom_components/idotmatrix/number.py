@@ -23,7 +23,32 @@ async def async_setup_entry(
         IDotMatrixTextSpacingVertical(coordinator, entry),
         IDotMatrixTextBlur(coordinator, entry),
         IDotMatrixTextFontSize(coordinator, entry),
+        IDotMatrixFunTextDelay(coordinator, entry),
     ])
+
+class IDotMatrixFunTextDelay(IDotMatrixEntity, NumberEntity):
+    """Representation of the Fun Text Delay control."""
+
+    _attr_icon = "mdi:timer-sand"
+    _attr_name = "Fun Text Delay (sec)"
+    _attr_native_min_value = 0.2
+    _attr_native_max_value = 5.0
+    _attr_native_step = 0.1
+    _attr_entity_category = EntityCategory.CONFIG
+    
+    @property
+    def unique_id(self) -> str:
+        return f"{self._mac}_fun_text_delay"
+
+    @property
+    def native_value(self) -> float | None:
+        return self.coordinator.text_settings.get("fun_text_delay", 0.4)
+
+    async def async_set_native_value(self, value: float) -> None:
+        """Set the value."""
+        self.coordinator.text_settings["fun_text_delay"] = float(value)
+        await self.coordinator.async_update_device()
+        self.async_write_ha_state()
 
 class IDotMatrixTextFontSize(IDotMatrixEntity, NumberEntity):
     """Representation of the Text Font Size control."""

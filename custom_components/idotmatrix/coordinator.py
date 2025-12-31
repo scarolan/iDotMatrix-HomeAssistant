@@ -56,6 +56,7 @@ class IDotMatrixCoordinator(DataUpdateCoordinator):
             "clock_style": 0,     # Default style index
             "clock_date": True,   # Show date
             "clock_format": "24h",# 12h or 24h
+            "fun_text_delay": 0.4,# Fun Text delay in seconds
         }
 
     async def _async_update_data(self):
