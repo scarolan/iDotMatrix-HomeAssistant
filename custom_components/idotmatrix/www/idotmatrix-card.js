@@ -17,6 +17,7 @@ class IDotMatrixCard extends LitElement {
       config: { type: Object },
       _layers: { type: Array, state: true },
       _previews: { type: Object, state: true }, // Stores rendered template values by layer ID
+      _availableFonts: { type: Array, state: true },
     };
   }
 
@@ -113,6 +114,7 @@ class IDotMatrixCard extends LitElement {
     this._previews = {};
     this._templateSubs = {}; // WebSocket unsubscribe functions
     this._debouncers = {};   // Debounce timers
+    this._availableFonts = [{ filename: "Rain-DRM3.otf", name: "Rain DRM3" }]; // Default
   }
 
   setConfig(config) {
@@ -249,7 +251,9 @@ class IDotMatrixCard extends LitElement {
                       .value=${layer.font || "Rain-DRM3.otf"}
                       @change=${(e) => this._updateLayer(index, "font", e.target.value)}
                     >
-                      <option value="Rain-DRM3.otf">Rain DRM3 (Pixel)</option>
+                      ${this._availableFonts.map(f => html`
+                        <option value="${f.filename}" ?selected=${layer.font === f.filename}>${f.name}</option>
+                      `)}
                     </select>
                     <input
                       type="color"
@@ -314,6 +318,27 @@ class IDotMatrixCard extends LitElement {
   firstUpdated() {
     this._subscribeAllLayers();
     this._drawCanvas();
+    this._fetchFonts();
+  }
+
+  async _fetchFonts() {
+    if (!this.hass?.connection) return;
+
+    try {
+      const response = await this.hass.connection.sendMessagePromise({
+        type: "call_service",
+        domain: "idotmatrix",
+        service: "list_fonts",
+        service_data: {},
+        return_response: true,
+      });
+
+      if (response?.response?.fonts?.length > 0) {
+        this._availableFonts = response.response.fonts;
+      }
+    } catch (e) {
+      console.error("[iDotMatrix] Failed to fetch fonts:", e);
+    }
   }
 
   disconnectedCallback() {

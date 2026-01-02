@@ -122,6 +122,36 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         supports_response="only"  # This service returns data
     )
 
+    # Register list_fonts service for dynamic font discovery
+    async def async_list_fonts(call):
+        """List all available fonts in the fonts directory."""
+        import os
+        
+        base_path = os.path.dirname(os.path.abspath(__file__))
+        fonts_dir = os.path.join(base_path, "fonts")
+        
+        fonts = []
+        if os.path.exists(fonts_dir):
+            for filename in sorted(os.listdir(fonts_dir)):
+                if filename.lower().endswith(('.otf', '.ttf', '.bdf')):
+                    # Create display name from filename
+                    name = filename.rsplit('.', 1)[0]
+                    # Convert to readable format (e.g., "Rain-DRM3" -> "Rain DRM3")
+                    display_name = name.replace('-', ' ').replace('_', ' ')
+                    fonts.append({
+                        "filename": filename,
+                        "name": display_name
+                    })
+        
+        return {"fonts": fonts}
+
+    hass.services.async_register(
+        DOMAIN, 
+        "list_fonts", 
+        async_list_fonts,
+        supports_response="only"
+    )
+
     return True
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
