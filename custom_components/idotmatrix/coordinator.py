@@ -184,6 +184,7 @@ class IDotMatrixCoordinator(DataUpdateCoordinator):
                 font_size = int(layer.get("font_size", 10))
                 spacing_x = int(layer.get("spacing_x", 1))
                 spacing_y = int(layer.get("spacing_y", 1))
+                blur = int(layer.get("blur", 5))
                 
                 # Resolve font path
                 base_path = os.path.dirname(os.path.abspath(__file__))
@@ -203,10 +204,14 @@ class IDotMatrixCoordinator(DataUpdateCoordinator):
                 except:
                     font = ImageFont.load_default()
                 
+                # Create separate RGBA layer for text to apply blur/sharpness
+                text_layer = Image.new("RGBA", (screen_size, screen_size), (0, 0, 0, 0))
+                text_draw = ImageDraw.Draw(text_layer)
+                
                 # Character-by-character rendering with custom spacing
                 current_x = x
                 for char in str(content):
-                    draw.text((current_x, y), char, font=font, fill=color)
+                    text_draw.text((current_x, y), char, font=font, fill=(255, 255, 255, 255))
                     # Get character width
                     try:
                         bbox = font.getbbox(char)
@@ -214,6 +219,27 @@ class IDotMatrixCoordinator(DataUpdateCoordinator):
                     except:
                         char_width = font_size // 2
                     current_x += int(char_width) + spacing_x
+                
+                # Apply blur/sharpness effect (0=Sharp, 5=Normal, 10=Blur)
+                if blur < 5:
+                    # Apply sharpening via contrast enhancement on alpha channel
+                    r, g, b, a = text_layer.split()
+                    gain = 1.0 + ((5 - blur) * 2.0)
+                    def apply_contrast(p):
+                        v = (p - 128) * gain + 128
+                        return max(0, min(255, int(v)))
+                    a = a.point(apply_contrast)
+                    text_layer.putalpha(a)
+                elif blur > 5:
+                    # Apply blur effect
+                    from PIL import ImageFilter
+                    blur_amount = (blur - 5) * 0.5  # 0.5 to 2.5 radius
+                    text_layer = text_layer.filter(ImageFilter.GaussianBlur(radius=blur_amount))
+                
+                # Composite text onto canvas with color
+                r, g, b, a = text_layer.split()
+                colored_text = Image.new("RGB", (screen_size, screen_size), color)
+                canvas.paste(colored_text, mask=a)
 
             elif l_type == "image":
                  image_path = layer.get("image_path")

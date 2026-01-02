@@ -105,6 +105,22 @@ class IDotMatrixCard extends LitElement {
         font-size: 12px;
         min-width: 120px;
       }
+      .blur-control {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 11px;
+      }
+      .blur-control label {
+        color: var(--secondary-text-color);
+      }
+      .blur-control input[type="range"] {
+        width: 60px;
+      }
+      .blur-control span {
+        min-width: 20px;
+        text-align: center;
+      }
     `;
   }
 
@@ -255,6 +271,17 @@ class IDotMatrixCard extends LitElement {
                         <option value="${f.filename}" ?selected=${layer.font === f.filename}>${f.name}</option>
                       `)}
                     </select>
+                    <div class="blur-control">
+                      <label>Blur</label>
+                      <input
+                        type="range"
+                        min="0"
+                        max="10"
+                        .value=${String(layer.blur ?? 5)}
+                        @input=${(e) => this._updateLayer(index, "blur", parseInt(e.target.value))}
+                      />
+                      <span>${layer.blur ?? 5}</span>
+                    </div>
                     <input
                       type="color"
                       .value=${this._rgbToHex(layer.color)}
