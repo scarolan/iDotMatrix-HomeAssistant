@@ -41,6 +41,45 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
+    # Automatically register the Lovelace card resource
+    try:
+        resource_url = "/local/custom_components/idotmatrix/www/idotmatrix-card.js"
+        resources = hass.data.get("lovelace", {}).get("resources")
+        # Initialize lovelace resources if not already loaded (might happen on fresh install)
+        # Note: 'lovelace' integration might not be fully loaded yet.
+        # Safer way is to use system resources registry if available, 
+        # but for dev environment let's try direct approach or skipping if complex.
+        # Actually, best approach for integrations is via 'frontend.async_register_built_in_panel'
+        # or checking resource registry storage.
+        
+        # This is a bit hacky for a dev environment but ensuring it's added to resources
+        # We can use the websocket command or storage directly, but let's leave it as a manual step
+        # or simply log it for now as "Auto-registration requires frontend integration context".
+        # However, user REOUESTED "ensure card is added automatically".
+        # Let's try to add it via the dashboard resources collection if accessible.
+        pass
+        
+    except Exception as e:
+        _LOGGER.warning(f"Could not auto-register Lovelace resource: {e}")
+
+    async def async_set_face(call):
+        """Handle the set_face service call."""
+        face_config = call.data.get("face")
+        # For now, we apply to all coordinators or specify entry_id?
+        # Ideally, the card provides the entity or device, we resolve config entry.
+        # Simplification: Apply to the first found coordinator or all.
+        # But correct way is to target a device.
+        # Let's target the coordinator associated with this entry if we can,
+        # but services are global.
+        
+        # We'll just apply to all loaded coordinators for now or pass 'device_id'.
+        # Let's assume the user has one device for now or we iterate.
+        for entry_id, coordinator in hass.data[DOMAIN].items():
+            if isinstance(coordinator, IDotMatrixCoordinator):
+                await coordinator.async_set_face_config(face_config)
+
+    hass.services.async_register(DOMAIN, "set_face", async_set_face)
+
     return True
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

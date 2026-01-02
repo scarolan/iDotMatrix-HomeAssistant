@@ -19,6 +19,9 @@ from .client.modules.image import Image as IDMImage
 from .client.modules.clock import Clock
 
 
+from homeassistant.helpers import template
+from homeassistant.util import dt as dt_util
+
 import os
 import tempfile
 from PIL import Image, ImageDraw, ImageFont
@@ -65,7 +68,110 @@ class IDotMatrixCoordinator(DataUpdateCoordinator):
             "clock_format": "24h",# 12h or 24h
             "fun_text_delay": 0.4,# Fun Text delay in seconds
             "autosize": False,    # Auto-scale font to fit screen
+            "mode": "basic",      # basic | advanced
+            "layers": [],         # List of layers for advanced mode
         }
+        
+    async def async_set_face_config(self, face_config: dict) -> None:
+        """Update face configuration from service."""
+        layers = face_config.get("layers", [])
+        self.text_settings["mode"] = "advanced"
+        self.text_settings["layers"] = layers
+        # Trigger update
+        await self.async_update_device()
+
+    async def _render_face(self, layers: list, screen_size: int) -> Image.Image:
+        """Render the advanced display face."""
+        # Create base canvas
+        canvas = Image.new("RGB", (screen_size, screen_size), (0, 0, 0))
+        draw = ImageDraw.Draw(canvas)
+        
+        # Load Fonts Cache (simple dict for now)
+        # We can reuse the font loading logic or abstract it
+        
+        for layer in layers:
+            # check conditions
+            if (cond_tpl := layer.get("condition_template")):
+                try:
+                    tpl = template.Template(cond_tpl, self.hass)
+                    if not tpl.async_render(parse_result=False):
+                        continue
+                except Exception as e:
+                    _LOGGER.warning(f"Error evaluating condition '{cond_tpl}': {e}")
+                    continue
+
+            l_type = layer.get("type", "text")
+            x = layer.get("x", 0)
+            y = layer.get("y", 0)
+            
+            if l_type == "text":
+                content = layer.get("content", "")
+                if layer.get("is_template", False):
+                    try:
+                        tpl = template.Template(content, self.hass)
+                        content = tpl.async_render(parse_result=False)
+                    except Exception as e:
+                        content = "ERR"
+                        _LOGGER.warning(f"Error evaluating text template: {e}")
+                
+                # Render Text
+                # Resolve color
+                color = tuple(layer.get("color", [255, 255, 255]))
+                font_name = layer.get("font", "Rain-DRM3.otf")
+                font_size = int(layer.get("font_size", 10))
+                
+                # Logic to find font path same as before
+                base_path = os.path.dirname(os.path.abspath(__file__))
+                fonts_dir = os.path.join(base_path, "fonts")
+                font_path = os.path.join(fonts_dir, "Rain-DRM3.otf")
+                
+                if font_name:
+                    if not os.path.isabs(font_name):
+                         potential = os.path.join(fonts_dir, font_name)
+                         if os.path.exists(potential):
+                             font_path = potential
+                    elif os.path.exists(font_name):
+                        font_path = font_name
+                        
+                try:
+                    font = ImageFont.truetype(font_path, font_size)
+                except:
+                    font = ImageFont.load_default()
+                    
+                draw.text((x, y), str(content), font=font, fill=color)
+
+            elif l_type == "image":
+                 image_path = layer.get("image_path")
+                 if not image_path: continue
+                 
+                 # Resolve path (Check 'www' or absolute)
+                 if not os.path.isabs(image_path):
+                     # Default to config/www/idotmatrix/
+                     base_www = self.hass.config.path("www", "idotmatrix")
+                     potential = os.path.join(base_www, image_path)
+                     if os.path.exists(potential):
+                         image_path = potential
+                     else:
+                         # Try locally in integration (bundled icons?)
+                         local = os.path.join(os.path.dirname(__file__), "images", image_path)
+                         if os.path.exists(local):
+                             image_path = local
+                             
+                 if os.path.exists(image_path):
+                     try:
+                         with Image.open(image_path) as img:
+                             img = img.convert("RGBA")
+                             # Resize if size provided
+                             w = layer.get("width")
+                             h = layer.get("height")
+                             if w and h:
+                                 img = img.resize((int(w), int(h)))
+                             
+                             canvas.paste(img, (x, y), img)
+                     except Exception as e:
+                         _LOGGER.error(f"Failed to load image layer {image_path}: {e}")
+
+        return canvas
 
     async def async_load_settings(self) -> None:
         """Load settings from storage."""
@@ -86,8 +192,24 @@ class IDotMatrixCoordinator(DataUpdateCoordinator):
         text = self.text_settings.get("current_text", "")
         settings = self.text_settings
         
-        if text:
-            # Render Text
+        if settings.get("mode") == "advanced":
+             # Advanced Rendering
+             screen_size = int(settings.get("screen_size", 32))
+             image = await self._render_face(settings.get("layers", []), screen_size)
+             
+             # Upload
+             with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+                image.save(tmp.name)
+                tmp_path = tmp.name
+             try:
+                await IDMImage().setMode(1)
+                await IDMImage().uploadProcessed(tmp_path, pixel_size=screen_size)
+             finally:
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+             
+        elif text:
+            # Render Text (Basic Mode)
             if settings.get("multiline", False):
                 await self._set_multiline_text(text, settings)
             else:
