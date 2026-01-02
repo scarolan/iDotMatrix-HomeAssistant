@@ -19,6 +19,8 @@ class IDotMatrixCard extends LitElement {
       _previews: { type: Object, state: true },
       _availableFonts: { type: Array, state: true },
       _triggerEntity: { type: String, state: true },
+      _savedDesigns: { type: Object, state: true },
+      _selectedDesign: { type: String, state: true },
     };
   }
 
@@ -141,6 +143,24 @@ class IDotMatrixCard extends LitElement {
         display: block;
         margin-top: 4px;
       }
+      .design-controls {
+        display: flex;
+        gap: 8px;
+        align-items: flex-end;
+        padding: 8px;
+        background: var(--secondary-background-color);
+        border-radius: 8px;
+        flex-wrap: wrap;
+        margin-top: 16px;
+      }
+      .design-picker {
+        flex: 2;
+        min-width: 150px;
+      }
+      .design-name-input {
+        flex: 2;
+        min-width: 150px;
+      }
     `;
   }
 
@@ -152,6 +172,8 @@ class IDotMatrixCard extends LitElement {
     this._debouncers = {};   // Debounce timers
     this._availableFonts = [{ filename: "Rain-DRM3.otf", name: "Rain DRM3" }]; // Default
     this._triggerEntity = "";
+    this._savedDesigns = {};
+    this._selectedDesign = "";
     this._triggerUnsub = null;
   }
 
@@ -350,13 +372,36 @@ class IDotMatrixCard extends LitElement {
           </div>
           
           <div class="actions">
-            <mwc-button @click=${this._saveDesign}>
-              <ha-icon icon="mdi:folder-download"></ha-icon>
-              Save Design
+            <mwc-button raised @click=${this._saveToDevice}>
+              <ha-icon icon="mdi:content-save"></ha-icon>
+              Save to Device
             </mwc-button>
-            <mwc-button @click=${this._loadDesign}>
-              <ha-icon icon="mdi:folder-upload"></ha-icon>
-              Load Design
+          </div>
+
+          <div class="design-controls">
+             <ha-combo-box
+              class="design-picker"
+              label="Load Design"
+              .items=${this._getDesignItems()}
+              .value=${this._selectedDesign}
+              @value-changed=${this._onDesignSelected}
+              item-value-path="name"
+              item-label-path="name"
+            ></ha-combo-box>
+
+            <ha-textfield
+              class="design-name-input"
+              label="Design Name (for saving)"
+              .value=${this._selectedDesign}
+              @input=${(e) => this._selectedDesign = e.target.value}
+            ></ha-textfield>
+
+            <mwc-button @click=${this._saveDesignBackend}>
+              <ha-icon icon="mdi:floppy"></ha-icon>
+              Save
+            </mwc-button>
+             <mwc-button @click=${this._deleteDesignBackend}>
+              <ha-icon icon="mdi:delete"></ha-icon>
             </mwc-button>
           </div>
         </div>
@@ -383,6 +428,105 @@ class IDotMatrixCard extends LitElement {
     this._subscribeAllLayers();
     this._drawCanvas();
     this._fetchFonts();
+    this._fetchDesigns();
+  }
+
+  async _fetchDesigns() {
+    if (!this.hass?.connection) return;
+    try {
+      const response = await this.hass.connection.sendMessagePromise({
+        type: "idotmatrix/list_designs",
+      });
+      if (response.designs) {
+        this._savedDesigns = response.designs;
+      }
+    } catch (e) {
+      console.error("Failed to fetch designs", e);
+    }
+  }
+
+  _getDesignItems() {
+    return Object.values(this._savedDesigns).map(d => ({ name: d.name }));
+  }
+
+  _onDesignSelected(e) {
+    const name = e.detail.value;
+    if (!name) return;
+
+    this._selectedDesign = name;
+
+    // Load the design
+    if (this._savedDesigns[name]) {
+      // Unsubscribe old layers
+      this._unsubscribeAll();
+
+      // Load layers (clone to avoid reference issues)
+      this._layers = JSON.parse(JSON.stringify(this._savedDesigns[name].layers));
+
+      // Re-subscribe
+      this._subscribeAllLayers();
+
+      const event = new CustomEvent("hass-notification", {
+        detail: { message: `Design "${name}" loaded!` },
+        bubbles: true,
+        composed: true,
+      });
+      this.dispatchEvent(event);
+    }
+  }
+
+  async _saveDesignBackend() {
+    const name = this._selectedDesign;
+    if (!name) {
+      alert("Please enter a design name");
+      return;
+    }
+
+    try {
+      await this.hass.connection.sendMessagePromise({
+        type: "idotmatrix/save_design",
+        name: name,
+        layers: this._layers
+      });
+
+      // Refresh list
+      await this._fetchDesigns();
+
+      const event = new CustomEvent("hass-notification", {
+        detail: { message: `Design "${name}" saved!` },
+        bubbles: true,
+        composed: true,
+      });
+      this.dispatchEvent(event);
+    } catch (e) {
+      alert(`Error saving design: ${e.message || e}`);
+    }
+  }
+
+  async _deleteDesignBackend() {
+    const name = this._selectedDesign;
+    if (!name || !this._savedDesigns[name]) return;
+
+    if (!confirm(`Delete design "${name}"?`)) return;
+
+    try {
+      await this.hass.connection.sendMessagePromise({
+        type: "idotmatrix/delete_design",
+        name: name,
+      });
+
+      this._selectedDesign = "";
+      // Refresh list
+      await this._fetchDesigns();
+      const event = new CustomEvent("hass-notification", {
+        detail: { message: `Design "${name}" deleted!` },
+        bubbles: true,
+        composed: true,
+      });
+      this.dispatchEvent(event);
+    } catch (e) {
+      alert(`Error deleting design: ${e.message || e}`);
+    }
   }
 
   async _fetchFonts() {
@@ -601,64 +745,7 @@ class IDotMatrixCard extends LitElement {
     this.dispatchEvent(event);
   }
 
-  _saveDesign() {
-    const designName = prompt("Enter design name:", "My Design");
-    if (!designName) return;
 
-    // Get existing designs
-    const designs = JSON.parse(localStorage.getItem("idotmatrix_designs") || "{}");
-
-    // Save current layers
-    designs[designName] = {
-      name: designName,
-      layers: this._layers,
-      savedAt: new Date().toISOString(),
-    };
-
-    localStorage.setItem("idotmatrix_designs", JSON.stringify(designs));
-
-    const event = new CustomEvent("hass-notification", {
-      detail: { message: `Design "${designName}" saved!` },
-      bubbles: true,
-      composed: true,
-    });
-    this.dispatchEvent(event);
-  }
-
-  _loadDesign() {
-    const designs = JSON.parse(localStorage.getItem("idotmatrix_designs") || "{}");
-    const designNames = Object.keys(designs);
-
-    if (designNames.length === 0) {
-      alert("No saved designs found.");
-      return;
-    }
-
-    const designName = prompt(
-      `Available designs:\n${designNames.join("\n")}\n\nEnter design name to load:`
-    );
-
-    if (!designName || !designs[designName]) {
-      alert("Design not found.");
-      return;
-    }
-
-    // Unsubscribe old layers
-    this._unsubscribeAll();
-
-    // Load layers
-    this._layers = designs[designName].layers;
-
-    // Re-subscribe
-    this._subscribeAllLayers();
-
-    const event = new CustomEvent("hass-notification", {
-      detail: { message: `Design "${designName}" loaded!` },
-      bubbles: true,
-      composed: true,
-    });
-    this.dispatchEvent(event);
-  }
 
   _rgbToHex(rgb) {
     return (

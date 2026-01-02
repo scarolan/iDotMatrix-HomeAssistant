@@ -158,6 +158,70 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         supports_response="only"
     )
 
+    # Initialize Design Storage
+    from .storage import DesignStorage
+    storage = DesignStorage(hass)
+    await storage.async_load()
+    hass.data[DOMAIN]["storage"] = storage
+
+    # Register WebSocket commands
+    from homeassistant.components import websocket_api
+    
+    @websocket_api.websocket_command({
+        "type": "idotmatrix/list_designs",
+    })
+    @websocket_api.async_response
+    async def websocket_list_designs(hass, connection, msg):
+        """List all designs."""
+        designs = storage.get_designs()
+        connection.send_result(msg["id"], {"designs": designs})
+
+    @websocket_api.websocket_command({
+        "type": "idotmatrix/save_design",
+        "name": str,
+        "layers": list,
+    })
+    @websocket_api.async_response
+    async def websocket_save_design(hass, connection, msg):
+        """Save a design."""
+        storage.save_design(msg["name"], msg["layers"])
+        connection.send_result(msg["id"])
+
+    @websocket_api.websocket_command({
+        "type": "idotmatrix/delete_design",
+        "name": str,
+    })
+    @websocket_api.async_response
+    async def websocket_delete_design(hass, connection, msg):
+        """Delete a design."""
+        if storage.delete_design(msg["name"]):
+            connection.send_result(msg["id"])
+        else:
+            connection.send_error(msg["id"], "design_not_found", "Design not found")
+
+    websocket_api.async_register_command(hass, websocket_list_designs)
+    websocket_api.async_register_command(hass, websocket_save_design)
+    websocket_api.async_register_command(hass, websocket_delete_design)
+
+
+    async def async_set_saved_design(call):
+        """Set a saved design by name."""
+        design_name = call.data.get("name")
+        design = storage.get_design(design_name)
+        
+        if not design:
+            _LOGGER.error(f"Design '{design_name}' not found")
+            return
+
+        face_config = {"layers": design["layers"]}
+        
+        # Apply to all coordinators (similar logic to set_face)
+        for entry_id, coordinator in hass.data[DOMAIN].items():
+            if isinstance(coordinator, IDotMatrixCoordinator):
+                await coordinator.async_set_face_config(face_config)
+
+    hass.services.async_register(DOMAIN, "set_saved_design", async_set_saved_design)
+
     return True
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
