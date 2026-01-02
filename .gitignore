@@ -23,6 +23,10 @@ share/python-wheels/
 MANIFEST
 
 # venv (Testing Environment)
+run_in_venv.sh
+run_in_venv.ps1
+find_cmds.sh
+convert_icon.py
 venv/
 ha_venv/
 env/

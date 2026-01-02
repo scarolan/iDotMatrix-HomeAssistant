@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import asyncio
 from datetime import timedelta
 
 from homeassistant.config_entries import ConfigEntry
@@ -17,12 +18,17 @@ from .client.modules.text import Text
 from .client.modules.image import Image as IDMImage
 from .client.modules.clock import Clock
 
+
 import os
 import tempfile
 from PIL import Image, ImageDraw, ImageFont
 
+from homeassistant.helpers.storage import Store
+
 _LOGGER = logging.getLogger(__name__)
 
+STORAGE_VERSION = 1
+STORAGE_KEY_PREFIX = "idotmatrix_settings_"
 
 class IDotMatrixCoordinator(DataUpdateCoordinator):
     """Class to manage fetching iDotMatrix data."""
@@ -36,6 +42,7 @@ class IDotMatrixCoordinator(DataUpdateCoordinator):
             update_interval=timedelta(seconds=60),
         )
         self.entry = entry
+        self._store = Store(hass, STORAGE_VERSION, f"{STORAGE_KEY_PREFIX}{entry.entry_id}")
         
         # Shared settings for Text entity
         self.text_settings = {
@@ -59,6 +66,16 @@ class IDotMatrixCoordinator(DataUpdateCoordinator):
             "fun_text_delay": 0.4,# Fun Text delay in seconds
             "autosize": False,    # Auto-scale font to fit screen
         }
+
+    async def async_load_settings(self) -> None:
+        """Load settings from storage."""
+        if (data := await self._store.async_load()):
+            _LOGGER.debug(f"Loaded persist settings: {data}")
+            self.text_settings.update(data)
+
+    async def async_save_settings(self) -> None:
+        """Save settings to storage."""
+        await self._store.async_save(self.text_settings)
 
     async def _async_update_data(self):
         """Fetch data from the device."""
@@ -95,9 +112,13 @@ class IDotMatrixCoordinator(DataUpdateCoordinator):
             c = settings.get("color", [255, 0, 0])
             h24 = settings.get("clock_format", "24h") == "24h"
             
+            style = settings.get("clock_style", 0)
+            show_date = settings.get("clock_date", True)
+            
+                
             await Clock().setMode(
-                style=settings.get("clock_style", 0),
-                visibleDate=settings.get("clock_date", True),
+                style=style,
+                visibleDate=show_date,
                 hour24=h24,
                 r=c[0],
                 g=c[1],
@@ -106,6 +127,9 @@ class IDotMatrixCoordinator(DataUpdateCoordinator):
             
         # Notify listeners to update UI states
         self.async_set_updated_data(self.data)
+        
+        # Save persistence
+        await self.async_save_settings()
 
     async def _set_multiline_text(self, text: str, settings: dict) -> None:
         """Generate an image from text and upload it."""
