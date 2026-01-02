@@ -130,18 +130,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         base_path = os.path.dirname(os.path.abspath(__file__))
         fonts_dir = os.path.join(base_path, "fonts")
         
-        fonts = []
-        if os.path.exists(fonts_dir):
+        def list_fonts_sync():
+            if not os.path.exists(fonts_dir):
+                return []
+            
+            result = []
             for filename in sorted(os.listdir(fonts_dir)):
                 if filename.lower().endswith(('.otf', '.ttf', '.bdf')):
                     # Create display name from filename
                     name = filename.rsplit('.', 1)[0]
                     # Convert to readable format (e.g., "Rain-DRM3" -> "Rain DRM3")
                     display_name = name.replace('-', ' ').replace('_', ' ')
-                    fonts.append({
+                    result.append({
                         "filename": filename,
                         "name": display_name
                     })
+            return result
+
+        fonts = await hass.async_add_executor_job(list_fonts_sync)
         
         return {"fonts": fonts}
 

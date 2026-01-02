@@ -109,27 +109,34 @@ class Image:
             Union[bool, bytearray]: False if there's an error, otherwise returns bytearray payload
         """
         try:
-            with PilImage.open(file_path) as img:
-                # Convert to RGB to ensure compatibility and drop some metadata
-                img = img.convert("RGB")
-                
-                if img.size != (pixel_size, pixel_size):
-                    img = img.resize(
-                        (pixel_size, pixel_size), PilImage.LANCZOS
-                    )
-                
-                # Strip metadata by clearing info
-                img.info = {}
-                
-                png_buffer = io.BytesIO()
-                # Save with optimize=True to further reduce size
-                img.save(png_buffer, format="PNG", optimize=True)
-                png_buffer.seek(0)
-                data = self._createPayloads(png_buffer.getvalue())
-                if self.conn:
-                    await self.conn.connect()
-                    await self.conn.send(data=data)
-                return data
+            import asyncio
+            
+            def process_image_sync():
+                with PilImage.open(file_path) as img:
+                    # Convert to RGB to ensure compatibility and drop some metadata
+                    img = img.convert("RGB")
+                    
+                    if img.size != (pixel_size, pixel_size):
+                        img = img.resize(
+                            (pixel_size, pixel_size), PilImage.LANCZOS
+                        )
+                    
+                    # Strip metadata by clearing info
+                    img.info = {}
+                    
+                    png_buffer = io.BytesIO()
+                    # Save with optimize=True to further reduce size
+                    img.save(png_buffer, format="PNG", optimize=True)
+                    png_buffer.seek(0)
+                    return png_buffer.getvalue()
+
+            png_bytes = await asyncio.to_thread(process_image_sync)
+            data = self._createPayloads(png_bytes)
+            
+            if self.conn:
+                await self.conn.connect()
+                await self.conn.send(data=data)
+            return data
         except BaseException as error:
             self.logging.error(f"could not upload processed image: {error}")
             return False
