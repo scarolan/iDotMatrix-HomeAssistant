@@ -56,5 +56,14 @@ sensor:
       - date
 EOF
 
+PORT=8128
+if command -v lsof >/dev/null 2>&1; then
+    PIDS=$(lsof -tiTCP:${PORT} -sTCP:LISTEN || true)
+    if [ -n "$PIDS" ]; then
+        echo "Stopping processes on port ${PORT}: ${PIDS}"
+        kill $PIDS || true
+    fi
+fi
+
 echo "Starting Home Assistant..."
 hass -c config

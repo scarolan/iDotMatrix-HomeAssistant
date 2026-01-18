@@ -7,7 +7,14 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from homeassistant.const import EntityCategory
-from .const import DOMAIN, ANIMATION_MODES, COLOR_MODES
+from .const import (
+    ANIMATION_MODES,
+    COLOR_MODES,
+    CONF_DISPLAY_MODE,
+    DISPLAY_MODE_DESIGN,
+    DISPLAY_MODE_OPTIONS,
+    DOMAIN,
+)
 from .entity import IDotMatrixEntity
 from .client.modules.clock import Clock
 from .client.modules.effect import Effect
@@ -44,12 +51,46 @@ async def async_setup_entry(
 
     async_add_entities([
         IDotMatrixClockFace(coordinator, entry),
+        IDotMatrixDisplayMode(coordinator, entry),
         IDotMatrixFont(coordinator, entry, fonts),
         IDotMatrixTextAnimation(coordinator, entry),
         IDotMatrixTextColorMode(coordinator, entry),
         IDotMatrixScreenSize(coordinator, entry),
         IDotMatrixClockFormat(coordinator, entry),
     ])
+
+class IDotMatrixDisplayMode(IDotMatrixEntity, SelectEntity):
+    """Selector for display source."""
+
+    _attr_icon = "mdi:television"
+    _attr_name = "Display Mode"
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_options = list(DISPLAY_MODE_OPTIONS.values())
+
+    def __init__(self, coordinator, entry):
+        super().__init__(coordinator, entry)
+        self._key_by_label = {v: k for k, v in DISPLAY_MODE_OPTIONS.items()}
+        current_key = entry.options.get(CONF_DISPLAY_MODE, DISPLAY_MODE_DESIGN)
+        self._attr_current_option = DISPLAY_MODE_OPTIONS.get(
+            current_key, self._attr_options[0]
+        )
+
+    @property
+    def unique_id(self) -> str:
+        return f"{self._mac}_display_mode"
+
+    async def async_select_option(self, option: str) -> None:
+        """Select display source."""
+        mode_key = self._key_by_label.get(option, DISPLAY_MODE_DESIGN)
+        self.coordinator.display_mode = mode_key
+        await self.coordinator.async_update_device()
+
+        options = dict(self.entry.options)
+        options[CONF_DISPLAY_MODE] = mode_key
+        self.hass.config_entries.async_update_entry(self.entry, options=options)
+
+        self._attr_current_option = option
+        self.async_write_ha_state()
 
 class IDotMatrixClockFormat(IDotMatrixEntity, SelectEntity):
     """Selector for Clock Format (12h/24h)."""

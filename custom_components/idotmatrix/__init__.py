@@ -13,6 +13,11 @@ _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [Platform.TEXT, Platform.SELECT, Platform.BUTTON, Platform.NUMBER, Platform.SWITCH, Platform.LIGHT]
 
+async def async_setup(hass: HomeAssistant, config: dict) -> bool:
+    """Set up the iDotMatrix component."""
+    return True
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up iDotMatrix from a config entry."""
     
@@ -38,6 +43,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     
     # Store coordinator instance
     hass.data[DOMAIN][entry.entry_id] = coordinator
+
+    async def _update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
+        await hass.config_entries.async_reload(entry.entry_id)
+
+    entry.async_on_unload(entry.add_update_listener(_update_listener))
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
@@ -176,6 +186,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         designs = storage.get_designs()
         connection.send_result(msg["id"], {"designs": designs})
 
+
+
     @websocket_api.websocket_command({
         "type": "idotmatrix/save_design",
         "name": str,
@@ -200,6 +212,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             connection.send_error(msg["id"], "design_not_found", "Design not found")
 
     websocket_api.async_register_command(hass, websocket_list_designs)
+
     websocket_api.async_register_command(hass, websocket_save_design)
     websocket_api.async_register_command(hass, websocket_delete_design)
 

@@ -18,6 +18,7 @@ class IDotMatrixCard extends LitElement {
       _layers: { type: Array, state: true },
       _previews: { type: Object, state: true },
       _availableFonts: { type: Array, state: true },
+      _availableImages: { type: Array, state: true },
       _triggerEntity: { type: String, state: true },
       _savedDesigns: { type: Object, state: true },
       _selectedDesign: { type: String, state: true },
@@ -282,11 +283,49 @@ class IDotMatrixCard extends LitElement {
                 <div class="layer-item">
                   <span>${index + 1}.</span>
                   <div class="layer-controls">
-                    <ha-textfield
-                      label="Template"
-                      .value=${layer.template || ""}
-                      @input=${(e) => this._updateLayer(index, "template", e.target.value)}
-                    ></ha-textfield>
+                    <div style="width: 100%; margin-bottom: 8px;">
+                        <span style="font-size: 0.9em; margin-right: 8px;">Type:</span>
+                        <input type="radio" name="type_${index}" id="type_text_${index}" value="text" 
+                            ?checked=${layer.type !== "image"} 
+                            @change=${(e) => this._updateLayer(index, "type", "text")}>
+                        <label for="type_text_${index}" style="margin-right: 12px;">Text</label>
+                        
+                        <input type="radio" name="type_${index}" id="type_image_${index}" value="image" 
+                            ?checked=${layer.type === "image"} 
+                            @change=${(e) => this._updateLayer(index, "type", "image")}>
+                        <label for="type_image_${index}">Image</label>
+                    </div>
+
+                    ${layer.type === "image" ? html`
+                        <ha-selector
+                           label="Image"
+                           .hass=${this.hass}
+                           .selector=${{ media: {} }}
+                           .value=${layer.image_path}
+                           @value-changed=${(e) => this._updateLayer(index, "image_path", e.detail.value)}
+                        ></ha-selector>
+                         <ha-textfield
+                            class="coord-input"
+                            label="Width"
+                            type="number"
+                            .value=${String(layer.width || 32)}
+                            @input=${(e) => this._updateLayer(index, "width", parseInt(e.target.value) || 0)}
+                        ></ha-textfield>
+                        <ha-textfield
+                            class="coord-input"
+                            label="Height"
+                            type="number"
+                            .value=${String(layer.height || 32)}
+                            @input=${(e) => this._updateLayer(index, "height", parseInt(e.target.value) || 0)}
+                        ></ha-textfield>
+                    ` : html`
+                        <ha-textfield
+                        label="Template"
+                        .value=${layer.template || ""}
+                        @input=${(e) => this._updateLayer(index, "template", e.target.value)}
+                        ></ha-textfield>
+                    `}
+
                     <ha-textfield
                       class="coord-input"
                       label="X"
@@ -301,51 +340,56 @@ class IDotMatrixCard extends LitElement {
                       .value=${String(layer.y)}
                       @input=${(e) => this._updateLayer(index, "y", parseInt(e.target.value) || 0)}
                     ></ha-textfield>
-                    <ha-textfield
-                      class="coord-input"
-                      label="Size"
-                      type="number"
-                      .value=${String(layer.font_size ?? 10)}
-                      @input=${(e) => this._updateLayer(index, "font_size", parseInt(e.target.value) || 10)}
-                    ></ha-textfield>
-                    <ha-textfield
-                      class="coord-input"
-                      label="Sp.X"
-                      type="number"
-                      .value=${String(layer.spacing_x ?? 1)}
-                      @input=${(e) => this._updateLayer(index, "spacing_x", parseInt(e.target.value) || 0)}
-                    ></ha-textfield>
-                    <ha-textfield
-                      class="coord-input"
-                      label="Sp.Y"
-                      type="number"
-                      .value=${String(layer.spacing_y ?? 1)}
-                      @input=${(e) => this._updateLayer(index, "spacing_y", parseInt(e.target.value) || 0)}
-                    ></ha-textfield>
-                    <ha-combo-box
-                      label="Font"
-                      .value=${layer.font || "Rain-DRM3.otf"}
-                      .items=${this._availableFonts}
-                      item-value-path="filename"
-                      item-label-path="name"
-                      @value-changed=${(e) => this._updateLayer(index, "font", e.detail.value)}
-                    ></ha-combo-box>
-                    <div class="blur-control">
-                      <label>Blur</label>
-                      <input
-                        type="range"
-                        min="0"
-                        max="10"
-                        .value=${String(layer.blur ?? 5)}
-                        @input=${(e) => this._updateLayer(index, "blur", parseInt(e.target.value))}
-                      />
-                      <span>${layer.blur ?? 5}</span>
-                    </div>
-                    <input
-                      type="color"
-                      .value=${this._rgbToHex(layer.color)}
-                      @input=${(e) => this._updateLayer(index, "color", this._hexToRgb(e.target.value))}
-                    />
+
+                    ${layer.type !== "image" ? html`
+                        <ha-textfield
+                        class="coord-input"
+                        label="Size"
+                        type="number"
+                        .value=${String(layer.font_size ?? 10)}
+                        @input=${(e) => this._updateLayer(index, "font_size", parseInt(e.target.value) || 10)}
+                        ></ha-textfield>
+                        <ha-textfield
+                        class="coord-input"
+                        label="Sp.X"
+                        type="number"
+                        .value=${String(layer.spacing_x ?? 1)}
+                        @input=${(e) => this._updateLayer(index, "spacing_x", parseInt(e.target.value) || 0)}
+                        ></ha-textfield>
+                        <ha-textfield
+                        class="coord-input"
+                        label="Sp.Y"
+                        type="number"
+                        .value=${String(layer.spacing_y ?? 1)}
+                        @input=${(e) => this._updateLayer(index, "spacing_y", parseInt(e.target.value) || 0)}
+                        ></ha-textfield>
+                        <select
+                        class="font-select"
+                        .value=${layer.font || "Rain-DRM3.otf"}
+                        @change=${(e) => this._updateLayer(index, "font", e.target.value)}
+                        >
+                        ${this._availableFonts.map(f => html`
+                            <option value="${f.filename}" ?selected=${layer.font === f.filename}>${f.name}</option>
+                        `)}
+                        </select>
+                        <div class="blur-control">
+                        <label>Blur</label>
+                        <input
+                            type="range"
+                            min="0"
+                            max="10"
+                            .value=${String(layer.blur ?? 5)}
+                            @input=${(e) => this._updateLayer(index, "blur", parseInt(e.target.value))}
+                        />
+                        <span>${layer.blur ?? 5}</span>
+                        </div>
+                        <input
+                        type="color"
+                        .value=${this._rgbToHex(layer.color)}
+                        @input=${(e) => this._updateLayer(index, "color", this._hexToRgb(e.target.value))}
+                        />
+                    ` : ''}
+
                     <mwc-button dense @click=${() => this._removeLayer(index)}>
                       <ha-icon icon="mdi:delete"></ha-icon>
                     </mwc-button>
@@ -529,6 +573,7 @@ class IDotMatrixCard extends LitElement {
     }
   }
 
+
   async _fetchFonts() {
     if (!this.hass?.connection) return;
 
@@ -659,8 +704,23 @@ class IDotMatrixCard extends LitElement {
     const layer = { ...newLayers[index] };
     layer[prop] = value;
 
-    // Always treat as template
-    layer.is_template = true;
+    // Handle Type Change
+    if (prop === "type") {
+      if (value === "image") {
+        // Defaults for image
+        layer.width = layer.width || 32;
+        layer.height = layer.height || 32;
+        layer.image_path = layer.image_path || "";
+      } else {
+        // Defaults for text
+        layer.is_template = true;
+      }
+    }
+
+    // Always treat as template only for text type
+    if (layer.type !== "image") {
+      layer.is_template = true;
+    }
 
     newLayers[index] = layer;
     this._layers = newLayers;

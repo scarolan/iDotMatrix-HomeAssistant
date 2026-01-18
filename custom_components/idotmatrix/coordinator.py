@@ -14,7 +14,7 @@ from homeassistant.helpers.update_coordinator import (
 )
 from homeassistant.helpers.event import async_track_state_change_event
 
-from .const import DOMAIN
+from .const import DOMAIN, CONF_DISPLAY_MODE, DISPLAY_MODE_DESIGN, DISPLAY_MODE_TEXT
 from .client.connectionManager import ConnectionManager
 from .client.modules.text import Text
 from .client.modules.image import Image as IDMImage
@@ -53,6 +53,7 @@ class IDotMatrixCoordinator(DataUpdateCoordinator):
         self.entry = entry
         self._store = Store(hass, STORAGE_VERSION, f"{STORAGE_KEY_PREFIX}{entry.entry_id}")
         self._entity_unsubs: list = []  # Entity state change unsubscribe callbacks
+        self.display_mode = entry.options.get(CONF_DISPLAY_MODE, DISPLAY_MODE_DESIGN)
         
         # Shared settings for Text entity
         self.text_settings = {
@@ -81,6 +82,9 @@ class IDotMatrixCoordinator(DataUpdateCoordinator):
         
     async def async_set_face_config(self, face_config: dict) -> None:
         """Update face configuration from service and set up entity tracking."""
+        if not face_config:
+            return
+
         layers = face_config.get("layers", [])
         self.text_settings["mode"] = "advanced"
         self.text_settings["layers"] = layers
@@ -254,32 +258,83 @@ class IDotMatrixCoordinator(DataUpdateCoordinator):
                  image_path = layer.get("image_path")
                  if not image_path: continue
                  
-                 # Resolve path (Check 'www' or absolute)
-                 if not os.path.isabs(image_path):
-                     # Default to config/www/idotmatrix/
-                     base_www = self.hass.config.path("www", "idotmatrix")
-                     potential = os.path.join(base_www, image_path)
-                     if os.path.exists(potential):
-                         image_path = potential
-                     else:
-                         # Try locally in integration (bundled icons?)
-                         local = os.path.join(os.path.dirname(__file__), "images", image_path)
-                         if os.path.exists(local):
-                             image_path = local
-                             
-                 if os.path.exists(image_path):
+                 img = None
+                 
+                 # Handle Media Source
+                 if image_path.startswith("media-source://"):
                      try:
-                         with Image.open(image_path) as img:
-                             img = img.convert("RGBA")
-                             # Resize if size provided
-                             w = layer.get("width")
-                             h = layer.get("height")
-                             if w and h:
-                                 img = img.resize((int(w), int(h)))
-                             
-                             canvas.paste(img, (x, y), img)
+                         from homeassistant.components import media_source
+                         # Resolve media source URL
+                         resolved = await media_source.async_resolve_media(self.hass, image_path, None)
+                         media_url = resolved.url
+                         
+                         # If it's a relative URL, prepend internal URL or handle locally
+                         # resolved.url is typically /media/...
+                         # We can fetch it via HTTP from localhost
+                         
+                         # However, if it maps to a file, maybe we can access directly? 
+                         # But abstracting via HTTP is safer for all media sources.
+                         
+                         # Use internal HTTP client to fetch
+                         from homeassistant.helpers.aiohttp_client import async_get_clientsession
+                         session = async_get_clientsession(self.hass)
+                         
+                         # Construct full URL if needed, but usually aiohttp handles relative to host if configured?
+                         # No, we need absolute URL or use loopback. 
+                         # Actually, HA's aiohttp client is for external. 
+                         # For internal, we might need to assume localhost.
+                         # Better: use hass.http?
+                         
+                         # Let's try to fetch relative URL using the server's port?
+                         # simpler: "http://127.0.0.1:8123" + media_url
+                         
+                         url = f"http://127.0.0.1:{self.hass.http.server_port}{media_url}"
+                         async with session.get(url) as resp:
+                             if resp.status == 200:
+                                 data = await resp.read()
+                                 import io
+                                 img = Image.open(io.BytesIO(data))
+                             else:
+                                 _LOGGER.error(f"Failed to fetch media: {resp.status}")
+                                 continue
                      except Exception as e:
-                         _LOGGER.error(f"Failed to load image layer {image_path}: {e}")
+                         _LOGGER.error(f"Error resolving media source {image_path}: {e}")
+                         continue
+
+                 else:
+                     # Legacy/Local path handling
+                     # Resolve path (Check 'www' or absolute)
+                     if not os.path.isabs(image_path):
+                         # Default to config/www/idotmatrix/
+                         base_www = self.hass.config.path("www", "idotmatrix")
+                         potential = os.path.join(base_www, image_path)
+                         if os.path.exists(potential):
+                             image_path = potential
+                         else:
+                             # Try locally in integration (bundled icons?)
+                             local = os.path.join(os.path.dirname(__file__), "images", image_path)
+                             if os.path.exists(local):
+                                 image_path = local
+                                 
+                     if os.path.exists(image_path):
+                         try:
+                            img = Image.open(image_path)
+                         except Exception as e:
+                             _LOGGER.error(f"Failed to load image file {image_path}: {e}")
+                             continue
+                
+                 if img:
+                     try:
+                         img = img.convert("RGBA")
+                         # Resize if size provided
+                         w = layer.get("width")
+                         h = layer.get("height")
+                         if w and h:
+                             img = img.resize((int(w), int(h)))
+                         
+                         canvas.paste(img, (x, y), img)
+                     except Exception as e:
+                         _LOGGER.error(f"Failed to process image layer: {e}")
 
         return canvas
 
@@ -301,8 +356,8 @@ class IDotMatrixCoordinator(DataUpdateCoordinator):
         """Send current configuration to the device."""
         text = self.text_settings.get("current_text", "")
         settings = self.text_settings
-        
-        if settings.get("mode") == "advanced":
+
+        if self.display_mode == DISPLAY_MODE_DESIGN and settings.get("mode") == "advanced":
              # Advanced Rendering
              screen_size = int(settings.get("screen_size", 32))
              image = await self._render_face(settings.get("layers", []), screen_size)
