@@ -88,19 +88,36 @@ class IDotMatrixCoordinator(DataUpdateCoordinator):
         layers = face_config.get("layers", [])
         self.text_settings["mode"] = "advanced"
         self.text_settings["layers"] = layers
+
+        self._apply_face_tracking(face_config)
         
-        # Cancel previous entity listeners
+        # Trigger initial update
+        await self.async_update_device()
+
+    def _clear_face_tracking(self) -> None:
+        """Cancel any entity listeners for face updates."""
         for unsub in self._entity_unsubs:
             unsub()
         self._entity_unsubs = []
-        
+
+    def _apply_face_tracking(self, face_config: dict) -> None:
+        """Register entity listeners for advanced face updates."""
+        self._clear_face_tracking()
+
+        if self.display_mode != DISPLAY_MODE_DESIGN:
+            return
+
+        layers = face_config.get("layers", [])
+        if not layers:
+            return
+
         # Extract entity IDs from layers
         entities_to_track = set()
         for layer in layers:
             # Direct entity reference
             if entity := layer.get("entity"):
                 entities_to_track.add(entity)
-            
+
             # Entity IDs in templates (e.g., {{ states('sensor.temp') }})
             if content := layer.get("content"):
                 matches = ENTITY_REGEX.findall(content)
@@ -108,7 +125,7 @@ class IDotMatrixCoordinator(DataUpdateCoordinator):
             if tpl := layer.get("template"):
                 matches = ENTITY_REGEX.findall(tpl)
                 entities_to_track.update(matches)
-        
+
         # Add explicit trigger entity if specified (for time-based or other updates)
         if trigger := face_config.get("trigger_entity"):
             if isinstance(trigger, str) and trigger.strip():
@@ -117,7 +134,7 @@ class IDotMatrixCoordinator(DataUpdateCoordinator):
                 for t in trigger:
                     if t and t.strip():
                         entities_to_track.add(t.strip())
-        
+
         # Set up state change listeners
         if entities_to_track:
             _LOGGER.info(f"[iDotMatrix] Tracking entities for auto-update: {entities_to_track}")
@@ -127,9 +144,14 @@ class IDotMatrixCoordinator(DataUpdateCoordinator):
                 self._on_entity_state_change
             )
             self._entity_unsubs.append(unsub)
-        
-        # Trigger initial update
-        await self.async_update_device()
+
+    async def async_set_display_mode(self, mode: str) -> None:
+        """Update display mode and refresh entity tracking."""
+        self.display_mode = mode
+        if mode == DISPLAY_MODE_DESIGN:
+            self._apply_face_tracking({"layers": self.text_settings.get("layers", [])})
+        else:
+            self._clear_face_tracking()
 
     @callback
     def _on_entity_state_change(self, event: Event) -> None:

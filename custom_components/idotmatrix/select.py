@@ -82,7 +82,7 @@ class IDotMatrixDisplayMode(IDotMatrixEntity, SelectEntity):
     async def async_select_option(self, option: str) -> None:
         """Select display source."""
         mode_key = self._key_by_label.get(option, DISPLAY_MODE_DESIGN)
-        self.coordinator.display_mode = mode_key
+        await self.coordinator.async_set_display_mode(mode_key)
         await self.coordinator.async_update_device()
 
         options = dict(self.entry.options)

@@ -45,14 +45,20 @@ class Text:
             separator = b"\x05\xff\xff\xff"
 
         try:
-            data = self._buildStringPacket(
-                text_mode=text_mode,
-                speed=speed,
-                text_color_mode=text_color_mode,
-                text_color=text_color,
-                text_bg_mode=text_bg_mode,
-                text_bg_color=text_bg_color,
-                text_bitmaps=self._StringToBitmaps(
+            if self.conn and self.conn.hass:
+                text_bitmaps = await self.conn.hass.async_add_executor_job(
+                    self._StringToBitmaps,
+                    text,
+                    font_path,
+                    font_size,
+                    image_width,
+                    image_height,
+                    separator,
+                    spacing,
+                    proportional,
+                )
+            else:
+                text_bitmaps = self._StringToBitmaps(
                     text=text,
                     font_size=font_size,
                     font_path=font_path,
@@ -60,8 +66,17 @@ class Text:
                     image_height=image_height,
                     separator=separator,
                     spacing=spacing,
-                    proportional=proportional
-                ),
+                    proportional=proportional,
+                )
+
+            data = self._buildStringPacket(
+                text_mode=text_mode,
+                speed=speed,
+                text_color_mode=text_color_mode,
+                text_color=text_color,
+                text_bg_mode=text_bg_mode,
+                text_bg_color=text_bg_color,
+                text_bitmaps=text_bitmaps,
                 separator=separator
             )
             if self.conn:
@@ -149,14 +164,30 @@ class Text:
             potential_path = os.path.join(fonts_dir, font_path)
             if os.path.exists(potential_path):
                 font_path = potential_path
+        if font_path and not os.path.exists(font_path):
+            self.logging.warning(
+                "Font path %s not found, falling back to Rain-DRM3.otf",
+                font_path,
+            )
+            font_path = os.path.join(fonts_dir, "Rain-DRM3.otf")
         
         if font_path:
-            if font_path.lower().endswith(".bdf") or font_path.lower().endswith(".pcf"):
-                font = ImageFont.load(font_path)
-            else:
+            try:
                 font = ImageFont.truetype(font_path, font_size)
+            except Exception as exc:
+                self.logging.warning(
+                    "Failed to load font %s, falling back to default: %s",
+                    font_path,
+                    exc,
+                )
+                try:
+                    font = ImageFont.truetype(
+                        os.path.join(fonts_dir, "Rain-DRM3.otf"), font_size
+                    )
+                except Exception:
+                    font = ImageFont.load_default()
         else:
-             font = ImageFont.truetype(font_path, font_size)
+            font = ImageFont.load_default()
         byte_stream = bytearray()
         
         if not proportional:
