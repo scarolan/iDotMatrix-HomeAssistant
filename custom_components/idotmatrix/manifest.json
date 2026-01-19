@@ -5,13 +5,16 @@
         "@tukies"
     ],
     "config_flow": true,
-    "documentation": "https://github.com/tukies/python3-idotmatrix-client",
+    "documentation": "https://github.com/tukies/iDotMatrix-HomeAssistant",
     "iot_class": "local_polling",
-    "issue_tracker": "https://github.com/tukies/python3-idotmatrix-client/issues",
+    "issue_tracker": "https://github.com/tukies/iDotMatrix-HomeAssistant/issues",
     "requirements": [
         "bleak",
         "Pillow",
         "bleak-retry-connector"
+    ],
+    "dependencies": [
+        "bluetooth"
     ],
     "bluetooth": [
         {

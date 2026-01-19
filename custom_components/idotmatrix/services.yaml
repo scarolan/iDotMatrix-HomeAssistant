@@ -1,0 +1,54 @@
+set_face:
+  name: Set face
+  description: Apply a layered face configuration from the designer.
+  fields:
+    face:
+      required: true
+      description: Face configuration with layers and optional trigger_entity.
+      example:
+        {
+          "layers": [
+            {
+              "id": "1",
+              "template": "{{ now().strftime('%H:%M') }}",
+              "x": 0,
+              "y": 8,
+              "color": [0, 255, 0],
+              "font_size": 10
+            }
+          ],
+          "trigger_entity": "sensor.time"
+        }
+      selector:
+        object:
+
+set_saved_design:
+  name: Set saved design
+  description: Apply a saved design by name.
+  fields:
+    name:
+      required: true
+      example: "My Design"
+      selector:
+        text:
+
+render_preview:
+  name: Render preview
+  description: Render a face preview image and return a base64 PNG.
+  fields:
+    face:
+      required: true
+      selector:
+        object:
+    screen_size:
+      required: false
+      example: 32
+      selector:
+        number:
+          min: 8
+          max: 64
+          mode: box
+
+list_fonts:
+  name: List fonts
+  description: Return available fonts for the designer.
