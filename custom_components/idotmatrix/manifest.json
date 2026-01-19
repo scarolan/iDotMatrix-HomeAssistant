@@ -2,12 +2,12 @@
     "domain": "idotmatrix",
     "name": "iDotMatrix",
     "codeowners": [
-        "@adriantukendorf"
+        "@tukies"
     ],
     "config_flow": true,
-    "documentation": "https://github.com/adriantukendorf/python3-idotmatrix-client",
+    "documentation": "https://github.com/tukies/python3-idotmatrix-client",
     "iot_class": "local_polling",
-    "issue_tracker": "https://github.com/adriantukendorf/python3-idotmatrix-client/issues",
+    "issue_tracker": "https://github.com/tukies/python3-idotmatrix-client/issues",
     "requirements": [
         "bleak",
         "Pillow",

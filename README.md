@@ -1,7 +1,7 @@
 # iDotMatrix Home Assistant Integration
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
-[![GitHub release (latest by date)](https://img.shields.io/github/v/release/adriantukendorf/iDotMatrix-HomeAssistant)](https://github.com/adriantukendorf/iDotMatrix-HomeAssistant/releases)
+[![GitHub release (latest by date)](https://img.shields.io/github/v/release/tukies/iDotMatrix-HomeAssistant)](https://github.com/tukies/iDotMatrix-HomeAssistant/releases)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-yellow.svg)](https://buymeacoffee.com/tukie)
 
 A fully featured, modern Home Assistant integration for **iDotMatrix** pixel art displays. 
@@ -38,7 +38,7 @@ Connects directly to your device via Bluetooth (native or proxy) without any clo
 ### Option 1: HACS (Recommended)
 1. Open HACS in Home Assistant.
 2. Go to **Integrations** > **Triple Dots** > **Custom Repositories**.
-3. Add `https://github.com/adriantukendorf/iDotMatrix-HomeAssistant` as an **Integration**.
+3. Add `https://github.com/tukies/iDotMatrix-HomeAssistant` as an **Integration**.
 4. Click **Download**.
 5. Restart Home Assistant.
 
