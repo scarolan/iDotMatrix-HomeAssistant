@@ -4,6 +4,10 @@ from __future__ import annotations
 import logging
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
+import os
+from homeassistant.components.http import StaticPathConfig
+from homeassistant.components.lovelace.const import CONF_RESOURCE_TYPE_WS, CONF_URL
+from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
 
@@ -14,10 +18,50 @@ _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [Platform.TEXT, Platform.SELECT, Platform.BUTTON, Platform.NUMBER, Platform.SWITCH, Platform.LIGHT]
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+_CARD_URL_PATH = "/idotmatrix"
+_CARD_FILENAME = "idotmatrix-card.js"
+_CARD_RESOURCE_URL = f"{_CARD_URL_PATH}/{_CARD_FILENAME}"
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Set up the iDotMatrix component."""
     return True
+
+
+async def _async_register_lovelace_resource(hass: HomeAssistant) -> None:
+    """Register the Lovelace card resource in storage mode."""
+    domain_data = hass.data.setdefault(DOMAIN, {})
+    if not domain_data.get("_static_path_registered"):
+        www_path = os.path.join(os.path.dirname(__file__), "www")
+        await hass.http.async_register_static_paths(
+            [StaticPathConfig(_CARD_URL_PATH, www_path, not hass.config.debug)]
+        )
+        domain_data["_static_path_registered"] = True
+
+    lovelace_data = hass.data.get("lovelace")
+    if not lovelace_data:
+        _LOGGER.info("Lovelace not loaded; skipping card resource registration")
+        return
+
+    resources = lovelace_data.get("resources")
+    if not resources or not hasattr(resources, "async_create_item"):
+        _LOGGER.info(
+            "Lovelace is in YAML mode; add card resource manually: %s",
+            _CARD_RESOURCE_URL,
+        )
+        return
+
+    if not resources.loaded:
+        await resources.async_load()
+        resources.loaded = True
+
+    existing = resources.async_items() or []
+    if any(item.get(CONF_URL) == _CARD_RESOURCE_URL for item in existing):
+        return
+
+    await resources.async_create_item(
+        {CONF_RESOURCE_TYPE_WS: "module", CONF_URL: _CARD_RESOURCE_URL}
+    )
+    _LOGGER.info("Registered Lovelace resource: %s", _CARD_RESOURCE_URL)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -53,26 +97,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    # Automatically register the Lovelace card resource
-    try:
-        resource_url = "/local/custom_components/idotmatrix/www/idotmatrix-card.js"
-        resources = hass.data.get("lovelace", {}).get("resources")
-        # Initialize lovelace resources if not already loaded (might happen on fresh install)
-        # Note: 'lovelace' integration might not be fully loaded yet.
-        # Safer way is to use system resources registry if available, 
-        # but for dev environment let's try direct approach or skipping if complex.
-        # Actually, best approach for integrations is via 'frontend.async_register_built_in_panel'
-        # or checking resource registry storage.
-        
-        # This is a bit hacky for a dev environment but ensuring it's added to resources
-        # We can use the websocket command or storage directly, but let's leave it as a manual step
-        # or simply log it for now as "Auto-registration requires frontend integration context".
-        # However, user REOUESTED "ensure card is added automatically".
-        # Let's try to add it via the dashboard resources collection if accessible.
-        pass
-        
-    except Exception as e:
-        _LOGGER.warning(f"Could not auto-register Lovelace resource: {e}")
+    # Automatically register the Lovelace card resource (storage mode only).
+    if hass.is_running:
+        hass.async_create_task(_async_register_lovelace_resource(hass))
+    else:
+        hass.bus.async_listen_once(
+            EVENT_HOMEASSISTANT_STARTED,
+            lambda event: hass.async_create_task(_async_register_lovelace_resource(hass)),
+        )
 
     async def async_set_face(call):
         """Handle the set_face service call."""

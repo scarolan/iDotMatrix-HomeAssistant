@@ -63,15 +63,16 @@ Connects directly to your device via Bluetooth (native or proxy) without any clo
 
 ## Lovelace Card (Designer)
 
-1. Add the resource in **Settings** > **Dashboards** > **Resources**:
-   - URL: `/local/idotmatrix-card.js`
-   - Type: `JavaScript Module`
-2. Add a card to your dashboard:
+The integration auto-registers the card in Lovelace storage mode. If you use YAML mode or prefer manual setup:
+- URL: `/idotmatrix/idotmatrix-card.js`
+- Type: `JavaScript Module`
+
+Add a card to your dashboard:
    ```yaml
    type: custom:idotmatrix-card
    title: iDotMatrix Designer
    ```
-3. Set `Display Mode` on the device page to **Display design from the Card**.
+Set `Display Mode` on the device page to **Display design from the Card**.
 
 ---
 
