@@ -7,6 +7,24 @@ CONF_NAME = "name"
 DEFAULT_NAME = "iDotMatrix"
 CONF_MAC = "mac_address"
 
+# Data Storage Keys
+STORAGE_VERSION = 1
+STORAGE_KEY_PREFIX = "idotmatrix_settings_"
+
+# New Constants for Display Face
+CONF_DISPLAY_FACE = "display_face"
+CONF_DISPLAY_MODE = "display_mode"
+
+DISPLAY_MODE_TEXT = "text"
+DISPLAY_MODE_DESIGN = "design"
+DISPLAY_MODE_OPTIONS = {
+    DISPLAY_MODE_TEXT: "Display Text Field",
+    DISPLAY_MODE_DESIGN: "Display design from the Card",
+}
+LAYER_TYPE_TEXT = "text"
+LAYER_TYPE_IMAGE = "image"
+LAYER_TYPE_SHAPE = "shape"
+
 ANIMATION_MODES = {
     "Hold": 0,
     "Left": 1,

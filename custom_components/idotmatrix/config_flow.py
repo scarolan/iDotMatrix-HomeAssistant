@@ -12,9 +12,17 @@ from homeassistant.components.bluetooth import (
     async_discovered_service_info,
 )
 from homeassistant.const import CONF_NAME
+from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 
-from .const import DOMAIN, DEFAULT_NAME, CONF_MAC
+from .const import (
+    CONF_DISPLAY_MODE,
+    DEFAULT_NAME,
+    DISPLAY_MODE_DESIGN,
+    DISPLAY_MODE_OPTIONS,
+    DOMAIN,
+    CONF_MAC,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -82,3 +90,32 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 CONF_NAME: name,
             },
         )
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: config_entries.ConfigEntry):
+        return OptionsFlowHandler(config_entry)
+
+
+class OptionsFlowHandler(config_entries.OptionsFlow):
+    """Handle iDotMatrix options."""
+
+    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
+        self.config_entry = config_entry
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        if user_input is not None:
+            return self.async_create_entry(title="", data=user_input)
+
+        current = self.config_entry.options.get(CONF_DISPLAY_MODE, DISPLAY_MODE_DESIGN)
+        schema = vol.Schema(
+            {
+                vol.Required(CONF_DISPLAY_MODE, default=current): vol.In(
+                    DISPLAY_MODE_OPTIONS
+                )
+            }
+        )
+
+        return self.async_show_form(step_id="init", data_schema=schema)
