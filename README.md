@@ -163,5 +163,5 @@ This integration fully supports **ESPHome Bluetooth Proxies**.
 ---
 
 <p align="center">
-  Built with ❤️ by Adrian
+  Built with ❤️ by Tukies, based on great work of @derkalle4 who created python interface to communicate with iDotMatrix. 
 </p>
