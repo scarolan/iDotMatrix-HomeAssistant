@@ -20,6 +20,7 @@ from .client.modules.text import Text
 from .client.modules.image import Image as IDMImage
 from .client.modules.gif import Gif as IDMGif
 from .client.modules.clock import Clock
+from .client.modules.fullscreenColor import FullscreenColor
 
 
 from homeassistant.helpers import template
@@ -864,13 +865,10 @@ class IDotMatrixCoordinator(DataUpdateCoordinator):
     async def _upload_gif(self, file_path: str, pixel_size: int) -> bool:
         """Upload a single GIF to the device."""
         try:
-            # Process the GIF in executor to avoid blocking (PIL does sync I/O)
-            gif_instance = IDMGif()
+            # Clear the screen first to ensure clean state
+            await FullscreenColor().setMode(0, 0, 0)
 
-            # The uploadProcessed method does blocking file I/O with PIL,
-            # but also needs async for the BLE send. We need to handle this carefully.
-            # For now, just call it directly since the BLE parts are async.
-            # The blocking warning is from PIL.Image.open() in the library.
+            gif_instance = IDMGif()
             result = await gif_instance.uploadProcessed(file_path, pixel_size=pixel_size)
             if result:
                 _LOGGER.debug(f"Successfully uploaded GIF: {file_path}")
