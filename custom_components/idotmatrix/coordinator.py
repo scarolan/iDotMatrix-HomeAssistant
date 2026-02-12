@@ -28,6 +28,7 @@ from homeassistant.util import dt as dt_util
 import os
 import tempfile
 import io
+import random
 from PIL import Image, ImageDraw, ImageFont
 
 from homeassistant.helpers.storage import Store
@@ -834,11 +835,13 @@ class IDotMatrixCoordinator(DataUpdateCoordinator):
         elif is_dir:
             # Folder mode - find all GIF files (in executor to avoid blocking)
             def find_gifs(folder):
-                return sorted([
+                files = [
                     os.path.join(folder, f)
                     for f in os.listdir(folder)
                     if f.lower().endswith(".gif")
-                ])
+                ]
+                random.shuffle(files)
+                return files
 
             gif_files = await self.hass.async_add_executor_job(find_gifs, path)
 
@@ -902,6 +905,8 @@ class IDotMatrixCoordinator(DataUpdateCoordinator):
                 if index >= len(gif_files):
                     if loop:
                         index = 0
+                        random.shuffle(gif_files)  # Reshuffle for next cycle
+                        _LOGGER.debug("GIF rotation: reshuffled for next cycle")
                     else:
                         _LOGGER.debug("GIF rotation completed (non-looping)")
                         break
