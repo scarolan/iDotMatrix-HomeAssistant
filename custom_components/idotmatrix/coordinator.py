@@ -864,30 +864,38 @@ class IDotMatrixCoordinator(DataUpdateCoordinator):
             _LOGGER.error(f"Path does not exist: {path}")
 
     async def _upload_gif(self, file_path: str, pixel_size: int) -> bool:
-        """Upload a single GIF to the device."""
-        try:
-            # Check if connection manager has a connected client
-            conn = ConnectionManager()
-            if conn.client and not conn.client.is_connected:
-                _LOGGER.warning("Device disconnected, attempting reconnect...")
+        """Upload a single GIF to the device with retry logic."""
+        max_retries = 3
 
-            gif_instance = IDMGif()
-            result = await gif_instance.uploadProcessed(file_path, pixel_size=pixel_size)
-            if result:
-                _LOGGER.debug(f"Successfully uploaded GIF: {file_path}")
-                return True
-            else:
-                _LOGGER.error(f"Failed to upload GIF: {file_path}")
-                return False
-        except asyncio.TimeoutError:
-            _LOGGER.error(f"Timeout uploading GIF {file_path} - device may be unresponsive")
-            return False
-        except BleakError as e:
-            _LOGGER.error(f"Bluetooth error uploading GIF {file_path}: {e}")
-            return False
-        except Exception as e:
-            _LOGGER.error(f"Error uploading GIF {file_path}: {e}")
-            return False
+        for attempt in range(max_retries):
+            try:
+                # Check if connection manager has a connected client
+                conn = ConnectionManager()
+                if conn.client and not conn.client.is_connected:
+                    _LOGGER.warning("Device disconnected, attempting reconnect...")
+
+                gif_instance = IDMGif()
+                result = await gif_instance.uploadProcessed(file_path, pixel_size=pixel_size)
+                if result:
+                    _LOGGER.debug(f"Successfully uploaded GIF: {file_path}")
+                    return True
+                else:
+                    _LOGGER.warning(f"Upload returned false for: {file_path}")
+
+            except asyncio.TimeoutError:
+                _LOGGER.warning(f"Timeout uploading GIF (attempt {attempt + 1}/{max_retries}): {file_path}")
+            except BleakError as e:
+                _LOGGER.warning(f"Bluetooth error (attempt {attempt + 1}/{max_retries}): {e}")
+            except Exception as e:
+                _LOGGER.warning(f"Error (attempt {attempt + 1}/{max_retries}): {e}")
+
+            # Wait before retry (except on last attempt)
+            if attempt < max_retries - 1:
+                _LOGGER.info(f"Retrying upload in 2 seconds...")
+                await asyncio.sleep(2)
+
+        _LOGGER.error(f"Failed to upload GIF after {max_retries} attempts: {file_path}")
+        return False
 
     async def _gif_rotation_loop(
         self,
