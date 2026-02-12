@@ -871,9 +871,6 @@ class IDotMatrixCoordinator(DataUpdateCoordinator):
             if conn.client and not conn.client.is_connected:
                 _LOGGER.warning("Device disconnected, attempting reconnect...")
 
-            # Clear the screen first to ensure clean state
-            await FullscreenColor().setMode(0, 0, 0)
-
             gif_instance = IDMGif()
             result = await gif_instance.uploadProcessed(file_path, pixel_size=pixel_size)
             if result:
