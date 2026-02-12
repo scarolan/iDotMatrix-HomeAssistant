@@ -18,6 +18,7 @@ from .const import DOMAIN, CONF_DISPLAY_MODE, DISPLAY_MODE_DESIGN, DISPLAY_MODE_
 from .client.connectionManager import ConnectionManager
 from .client.modules.text import Text
 from .client.modules.image import Image as IDMImage
+from .client.modules.gif import Gif as IDMGif
 from .client.modules.clock import Clock
 
 
@@ -68,7 +69,11 @@ class IDotMatrixCoordinator(DataUpdateCoordinator):
         self._mdi_lock = asyncio.Lock()
         self._mdi_error_logged = False
         self._mdi_unknown_icons: set[str] = set()
-        
+
+        # GIF rotation tracking
+        self._gif_rotation_task: asyncio.Task | None = None
+        self._gif_rotation_stop = asyncio.Event()
+
         # Shared settings for Text entity
         self.text_settings = {
             "current_text": "",   # The actual text content
@@ -799,3 +804,122 @@ class IDotMatrixCoordinator(DataUpdateCoordinator):
         finally:
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
+
+    async def async_display_gif(
+        self,
+        path: str,
+        rotation_interval: float = 10,
+        loop: bool = True,
+    ) -> None:
+        """Display GIF(s) on the device.
+
+        Args:
+            path: Path to a single GIF file or a folder containing GIF files.
+            rotation_interval: Seconds between GIF rotations (folder mode only).
+            loop: Whether to loop through GIFs continuously.
+        """
+        # Stop any existing rotation
+        await self.async_stop_gif_rotation()
+
+        screen_size = int(self.text_settings.get("screen_size", 32))
+
+        # Determine if path is a file or directory
+        if os.path.isfile(path):
+            # Single file mode
+            await self._upload_gif(path, screen_size)
+        elif os.path.isdir(path):
+            # Folder mode - find all GIF files
+            gif_files = sorted([
+                os.path.join(path, f)
+                for f in os.listdir(path)
+                if f.lower().endswith(".gif")
+            ])
+
+            if not gif_files:
+                _LOGGER.warning(f"No GIF files found in {path}")
+                return
+
+            if len(gif_files) == 1:
+                # Only one GIF, just display it
+                await self._upload_gif(gif_files[0], screen_size)
+            else:
+                # Multiple GIFs - start rotation
+                self._gif_rotation_stop.clear()
+                self._gif_rotation_task = asyncio.create_task(
+                    self._gif_rotation_loop(gif_files, rotation_interval, loop, screen_size)
+                )
+        else:
+            _LOGGER.error(f"Path does not exist: {path}")
+
+    async def _upload_gif(self, file_path: str, pixel_size: int) -> bool:
+        """Upload a single GIF to the device."""
+        try:
+            result = await IDMGif().uploadProcessed(file_path, pixel_size=pixel_size)
+            if result:
+                _LOGGER.debug(f"Successfully uploaded GIF: {file_path}")
+                return True
+            else:
+                _LOGGER.error(f"Failed to upload GIF: {file_path}")
+                return False
+        except Exception as e:
+            _LOGGER.error(f"Error uploading GIF {file_path}: {e}")
+            return False
+
+    async def _gif_rotation_loop(
+        self,
+        gif_files: list[str],
+        interval: float,
+        loop: bool,
+        pixel_size: int,
+    ) -> None:
+        """Background task that rotates through GIFs."""
+        try:
+            index = 0
+            while True:
+                if self._gif_rotation_stop.is_set():
+                    _LOGGER.debug("GIF rotation stopped by request")
+                    break
+
+                gif_path = gif_files[index]
+                _LOGGER.debug(f"Displaying GIF {index + 1}/{len(gif_files)}: {gif_path}")
+                await self._upload_gif(gif_path, pixel_size)
+
+                index += 1
+                if index >= len(gif_files):
+                    if loop:
+                        index = 0
+                    else:
+                        _LOGGER.debug("GIF rotation completed (non-looping)")
+                        break
+
+                # Wait for the interval or until stopped
+                try:
+                    await asyncio.wait_for(
+                        self._gif_rotation_stop.wait(),
+                        timeout=interval
+                    )
+                    # If we get here, stop was requested
+                    _LOGGER.debug("GIF rotation stopped during wait")
+                    break
+                except asyncio.TimeoutError:
+                    # Normal timeout, continue to next GIF
+                    pass
+
+        except asyncio.CancelledError:
+            _LOGGER.debug("GIF rotation task cancelled")
+        except Exception as e:
+            _LOGGER.error(f"Error in GIF rotation loop: {e}")
+        finally:
+            self._gif_rotation_task = None
+
+    async def async_stop_gif_rotation(self) -> None:
+        """Stop the current GIF rotation if running."""
+        if self._gif_rotation_task is not None:
+            self._gif_rotation_stop.set()
+            self._gif_rotation_task.cancel()
+            try:
+                await self._gif_rotation_task
+            except asyncio.CancelledError:
+                pass
+            self._gif_rotation_task = None
+            _LOGGER.debug("GIF rotation stopped")

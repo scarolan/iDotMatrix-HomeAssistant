@@ -52,3 +52,35 @@ render_preview:
 list_fonts:
   name: List fonts
   description: Return available fonts for the designer.
+
+display_gif:
+  name: Display GIF
+  description: Display animated GIFs on the iDotMatrix device. Can show a single GIF or rotate through a folder of GIFs.
+  fields:
+    path:
+      required: true
+      description: Path to a GIF file or folder containing GIF files.
+      example: "/config/www/idotmatrix/gifs"
+      selector:
+        text:
+    rotation_interval:
+      required: false
+      description: Time in seconds to display each GIF before rotating to the next (only used when path is a folder). Set to 0 to display all GIFs once without looping.
+      default: 10
+      example: 10
+      selector:
+        number:
+          min: 0
+          max: 3600
+          unit_of_measurement: seconds
+          mode: box
+    loop:
+      required: false
+      description: Whether to continuously loop through GIFs in the folder. When false, stops after displaying all GIFs once.
+      default: true
+      selector:
+        boolean:
+
+stop_gif_rotation:
+  name: Stop GIF Rotation
+  description: Stop the current GIF rotation if one is running.

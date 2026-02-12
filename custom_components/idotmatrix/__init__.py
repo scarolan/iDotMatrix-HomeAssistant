@@ -284,13 +284,47 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.services.async_register(DOMAIN, "set_saved_design", async_set_saved_design)
 
+    # Register display_gif service
+    async def async_display_gif(call):
+        """Handle the display_gif service call."""
+        path = call.data.get("path")
+        rotation_interval = call.data.get("rotation_interval", 10)
+        loop = call.data.get("loop", True)
+
+        if not path:
+            _LOGGER.error("display_gif service requires 'path' parameter")
+            return
+
+        # Apply to all coordinators
+        for entry_id, coordinator in hass.data[DOMAIN].items():
+            if isinstance(coordinator, IDotMatrixCoordinator):
+                await coordinator.async_display_gif(
+                    path=path,
+                    rotation_interval=rotation_interval,
+                    loop=loop,
+                )
+
+    hass.services.async_register(DOMAIN, "display_gif", async_display_gif)
+
+    # Register stop_gif_rotation service
+    async def async_stop_gif_rotation(call):
+        """Handle the stop_gif_rotation service call."""
+        for entry_id, coordinator in hass.data[DOMAIN].items():
+            if isinstance(coordinator, IDotMatrixCoordinator):
+                await coordinator.async_stop_gif_rotation()
+
+    hass.services.async_register(DOMAIN, "stop_gif_rotation", async_stop_gif_rotation)
+
     return True
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     coordinator = hass.data.get(DOMAIN, {}).get(entry.entry_id)
-    if coordinator and hasattr(coordinator, "_clear_face_tracking"):
-        coordinator._clear_face_tracking()
+    if coordinator:
+        if hasattr(coordinator, "_clear_face_tracking"):
+            coordinator._clear_face_tracking()
+        if hasattr(coordinator, "async_stop_gif_rotation"):
+            await coordinator.async_stop_gif_rotation()
     if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         hass.data[DOMAIN].pop(entry.entry_id)
 
