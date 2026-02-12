@@ -16,6 +16,7 @@ from homeassistant.helpers.event import async_track_state_change_event
 
 from .const import DOMAIN, CONF_DISPLAY_MODE, DISPLAY_MODE_DESIGN, DISPLAY_MODE_TEXT
 from .client.connectionManager import ConnectionManager
+from bleak.exc import BleakError
 from .client.modules.text import Text
 from .client.modules.image import Image as IDMImage
 from .client.modules.gif import Gif as IDMGif
@@ -865,6 +866,11 @@ class IDotMatrixCoordinator(DataUpdateCoordinator):
     async def _upload_gif(self, file_path: str, pixel_size: int) -> bool:
         """Upload a single GIF to the device."""
         try:
+            # Check if connection manager has a connected client
+            conn = ConnectionManager()
+            if conn.client and not conn.client.is_connected:
+                _LOGGER.warning("Device disconnected, attempting reconnect...")
+
             # Clear the screen first to ensure clean state
             await FullscreenColor().setMode(0, 0, 0)
 
@@ -876,6 +882,12 @@ class IDotMatrixCoordinator(DataUpdateCoordinator):
             else:
                 _LOGGER.error(f"Failed to upload GIF: {file_path}")
                 return False
+        except asyncio.TimeoutError:
+            _LOGGER.error(f"Timeout uploading GIF {file_path} - device may be unresponsive")
+            return False
+        except BleakError as e:
+            _LOGGER.error(f"Bluetooth error uploading GIF {file_path}: {e}")
+            return False
         except Exception as e:
             _LOGGER.error(f"Error uploading GIF {file_path}: {e}")
             return False
@@ -888,6 +900,9 @@ class IDotMatrixCoordinator(DataUpdateCoordinator):
         pixel_size: int,
     ) -> None:
         """Background task that rotates through GIFs."""
+        MAX_CONSECUTIVE_FAILURES = 3
+        consecutive_failures = 0
+
         try:
             index = 0
             while True:
@@ -897,7 +912,23 @@ class IDotMatrixCoordinator(DataUpdateCoordinator):
 
                 gif_path = gif_files[index]
                 _LOGGER.debug(f"Displaying GIF {index + 1}/{len(gif_files)}: {gif_path}")
-                await self._upload_gif(gif_path, pixel_size)
+
+                success = await self._upload_gif(gif_path, pixel_size)
+
+                if success:
+                    consecutive_failures = 0
+                else:
+                    consecutive_failures += 1
+                    _LOGGER.warning(
+                        f"GIF upload failed ({consecutive_failures}/{MAX_CONSECUTIVE_FAILURES}): {gif_path}"
+                    )
+
+                    if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                        _LOGGER.error(
+                            "GIF rotation stopped: too many consecutive failures. "
+                            "Device may be offline or unreachable."
+                        )
+                        break
 
                 index += 1
                 if index >= len(gif_files):
