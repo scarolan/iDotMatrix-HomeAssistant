@@ -112,21 +112,20 @@ class Gif:
             self.logging.error(f"could not upload gif unprocessed: {error}")
             return False
 
-    async def uploadProcessed(
-        self, file_path: str, pixel_size: int = 32
-    ) -> Union[bool, bytearray]:
-        """uploads a file processed to make sure everything is correct before uploading to the device.
+    def _processGif(self, file_path: str, pixel_size: int = 32) -> Union[bool, List[bytearray]]:
+        """Process a GIF file and create payloads (sync, for use in executor).
 
         Args:
             file_path (str): path to the image file
-            pixel_size (int, optional): amount of pixels (either 16 or 32 makes sense). Defaults to 32.
+            pixel_size (int, optional): amount of pixels. Defaults to 32.
 
         Returns:
-            Union[bool, bytearray]: False if there's an error, otherwise returns bytearray payload
+            Union[bool, List[bytearray]]: False if error, otherwise list of payload chunks
         """
         try:
             with PilImage.open(file_path) as img:
                 frames = []
+                duration = img.info.get("duration", 100)
                 try:
                     while True:
                         frame = img.copy()
@@ -145,16 +144,41 @@ class Gif:
                     save_all=True,
                     append_images=frames[1:],
                     loop=1,
-                    duration=img.info["duration"],
+                    duration=duration,
                     disposal=2,
                 )
                 gif_buffer.seek(0)
-                data = self._createPayloads(gif_buffer.getvalue())
-                if self.conn:
-                    await self.conn.connect()
-                    for chunk in data:
-                        await self.conn.send(data=chunk, response=True)
-                return data
+                return self._createPayloads(gif_buffer.getvalue())
+        except BaseException as error:
+            self.logging.error(f"could not process gif: {error}")
+            return False
+
+    async def uploadProcessed(
+        self, file_path: str, pixel_size: int = 32
+    ) -> Union[bool, bytearray]:
+        """uploads a file processed to make sure everything is correct before uploading to the device.
+
+        Args:
+            file_path (str): path to the image file
+            pixel_size (int, optional): amount of pixels (either 16 or 32 makes sense). Defaults to 32.
+
+        Returns:
+            Union[bool, bytearray]: False if there's an error, otherwise returns bytearray payload
+        """
+        try:
+            # Process GIF in executor to avoid blocking the event loop
+            import asyncio
+            loop = asyncio.get_event_loop()
+            data = await loop.run_in_executor(None, self._processGif, file_path, pixel_size)
+
+            if data is False:
+                return False
+
+            if self.conn:
+                await self.conn.connect()
+                for chunk in data:
+                    await self.conn.send(data=chunk, response=True)
+            return data
         except BaseException as error:
             self.logging.error(f"could not upload gif processed: {error}")
             return False
