@@ -148,7 +148,7 @@ class Gif:
                     format="GIF",
                     save_all=True,
                     append_images=frames[1:],
-                    loop=1,
+                    loop=0,
                     duration=duration,
                     disposal=2,
                 )
@@ -183,11 +183,6 @@ class Gif:
 
             if self.conn:
                 await self.conn.connect()
-                # Exit batch mode before single upload (device ignores single
-                # uploads while still in batch/carousel mode)
-                batch_disable = bytearray([0x04, 0x00, 0x0a, 0x00])
-                await self.conn.send(data=batch_disable)
-                await asyncio.sleep(0.1)
                 for chunk in data:
                     await self.conn.send(data=chunk)
             return data
