@@ -182,6 +182,7 @@ class Gif:
                 return False
 
             if self.conn:
+                import asyncio
                 await self.conn.connect()
                 self.logging.info(f"Uploading {len(data)} chunks, connected={self.conn.client and self.conn.client.is_connected}")
                 sent = 0
@@ -192,6 +193,8 @@ class Gif:
                     else:
                         self.logging.error(f"Send failed at chunk {sent}/{len(data)}, connected={self.conn.client and self.conn.client.is_connected}")
                         break
+                    # Pace chunk sends so the BLE proxy can flush to the radio
+                    await asyncio.sleep(0.1)
                 self.logging.info(f"Sent {sent}/{len(data)} chunks")
             return data
         except BaseException as error:
