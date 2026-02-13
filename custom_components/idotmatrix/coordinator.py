@@ -834,8 +834,13 @@ class IDotMatrixCoordinator(DataUpdateCoordinator):
 
         # Determine if path is a file or directory
         if is_file:
-            # Single file mode
-            await self._upload_gif(path, screen_size)
+            # Single file — use batch protocol with count=1 for consistency
+            _LOGGER.info(f"Uploading single GIF via batch protocol: {path}")
+            success = await IDMGif().uploadBatch(
+                [path], pixel_size=screen_size, interval=interval
+            )
+            if not success:
+                _LOGGER.error(f"Single GIF upload failed: {path}")
         elif is_dir:
             # Folder mode - find all GIF files (in executor to avoid blocking)
             def find_gifs(folder):
@@ -853,21 +858,17 @@ class IDotMatrixCoordinator(DataUpdateCoordinator):
                 _LOGGER.warning(f"No GIF files found in {path}")
                 return
 
-            if len(gif_files) == 1:
-                # Only one GIF, just display it
-                await self._upload_gif(gif_files[0], screen_size)
-            else:
-                # Pick up to 12 random GIFs and batch upload them
-                batch = gif_files[:12]
-                _LOGGER.info(
-                    f"Batch uploading {len(batch)} random GIFs from "
-                    f"{len(gif_files)} available, interval={interval}s"
-                )
-                success = await IDMGif().uploadBatch(
-                    batch, pixel_size=screen_size, interval=interval
-                )
-                if not success:
-                    _LOGGER.error("Batch GIF upload failed")
+            # Batch upload (works for 1 or many)
+            batch = gif_files[:12]
+            _LOGGER.info(
+                f"Batch uploading {len(batch)} GIFs from "
+                f"{len(gif_files)} available, interval={interval}s"
+            )
+            success = await IDMGif().uploadBatch(
+                batch, pixel_size=screen_size, interval=interval
+            )
+            if not success:
+                _LOGGER.error("Batch GIF upload failed")
         else:
             _LOGGER.error(f"Path does not exist: {path}")
 
