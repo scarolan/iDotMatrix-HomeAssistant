@@ -183,8 +183,16 @@ class Gif:
 
             if self.conn:
                 await self.conn.connect()
+                self.logging.info(f"Uploading {len(data)} chunks, connected={self.conn.client and self.conn.client.is_connected}")
+                sent = 0
                 for chunk in data:
-                    await self.conn.send(data=chunk)
+                    result = await self.conn.send(data=chunk)
+                    if result:
+                        sent += 1
+                    else:
+                        self.logging.error(f"Send failed at chunk {sent}/{len(data)}, connected={self.conn.client and self.conn.client.is_connected}")
+                        break
+                self.logging.info(f"Sent {sent}/{len(data)} chunks")
             return data
         except BaseException as error:
             self.logging.error(f"could not upload gif processed: {error}")
