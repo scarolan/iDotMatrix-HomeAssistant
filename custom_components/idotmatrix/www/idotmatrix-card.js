@@ -5,7 +5,7 @@ import {
 } from "https://unpkg.com/lit-element@3.3.3/lit-element.js?module";
 
 console.info(
-  "%c iDotMatrix Card %c v0.2.0 ",
+  "%c iDotMatrix Card %c v0.3.0 ",
   "color: white; background: #333; font-weight: bold;",
   "color: white; background: #03a9f4; font-weight: bold;"
 );
@@ -22,6 +22,8 @@ class IDotMatrixCard extends LitElement {
       _triggerEntity: { type: String, state: true },
       _savedDesigns: { type: Object, state: true },
       _selectedDesign: { type: String, state: true },
+      _gifPath: { type: String, state: true },
+      _gifStatus: { type: String, state: true },
     };
   }
 
@@ -162,6 +164,43 @@ class IDotMatrixCard extends LitElement {
         flex: 2;
         min-width: 150px;
       }
+      .gif-section {
+        border-top: 1px solid var(--divider-color);
+        padding-top: 16px;
+        margin-top: 8px;
+      }
+      .gif-section .section-title {
+        font-size: 14px;
+        font-weight: bold;
+        margin-bottom: 12px;
+        color: var(--primary-text-color);
+      }
+      .gif-controls {
+        display: flex;
+        gap: 8px;
+        align-items: flex-end;
+        flex-wrap: wrap;
+      }
+      .gif-controls ha-textfield {
+        flex: 1;
+        min-width: 200px;
+      }
+      .gif-status {
+        font-size: 12px;
+        color: var(--secondary-text-color);
+        margin-top: 8px;
+      }
+      .gif-status.error {
+        color: var(--error-color);
+      }
+      .gif-status.success {
+        color: var(--success-color, #4caf50);
+      }
+      .gif-hint {
+        font-size: 11px;
+        color: var(--secondary-text-color);
+        margin-top: 4px;
+      }
     `;
   }
 
@@ -177,6 +216,8 @@ class IDotMatrixCard extends LitElement {
     this._savedDesigns = {};
     this._selectedDesign = "";
     this._triggerUnsub = null;
+    this._gifPath = "";
+    this._gifStatus = "";
   }
 
   setConfig(config) {
@@ -427,6 +468,30 @@ class IDotMatrixCard extends LitElement {
              <mwc-button @click=${this._deleteDesignBackend}>
               <ha-icon icon="mdi:delete"></ha-icon>
             </mwc-button>
+          </div>
+
+          <div class="gif-section">
+            <div class="section-title">GIF Display</div>
+            <div class="gif-controls">
+              <ha-textfield
+                label="GIF file or folder path"
+                .value=${this._gifPath}
+                @input=${(e) => { this._gifPath = e.target.value; this._gifStatus = ""; }}
+                placeholder="/media/idotmatrix/gifs/"
+              ></ha-textfield>
+              <mwc-button raised @click=${this._sendGif}>
+                <ha-icon icon="mdi:file-gif-box"></ha-icon>
+                Send GIFs
+              </mwc-button>
+            </div>
+            <p class="gif-hint">
+              Single file: sends one GIF. Folder: picks up to 12 random GIFs and batch uploads them (device loops automatically).
+            </p>
+            ${this._gifStatus ? html`
+              <div class="gif-status ${this._gifStatus.startsWith("Error") ? "error" : "success"}">
+                ${this._gifStatus}
+              </div>
+            ` : ""}
           </div>
         </div>
       </ha-card>
@@ -771,6 +836,24 @@ class IDotMatrixCard extends LitElement {
       composed: true,
     });
     this.dispatchEvent(event);
+  }
+
+  async _sendGif() {
+    if (!this.hass || !this._gifPath) {
+      this._gifStatus = "Error: enter a path first";
+      return;
+    }
+
+    this._gifStatus = "Uploading...";
+
+    try {
+      await this.hass.callService("idotmatrix", "display_gif", {
+        path: this._gifPath,
+      });
+      this._gifStatus = "Sent!";
+    } catch (e) {
+      this._gifStatus = `Error: ${e.message || e}`;
+    }
   }
 
   _setTriggerEntity(value) {

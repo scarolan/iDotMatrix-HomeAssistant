@@ -855,11 +855,12 @@ class IDotMatrixCoordinator(DataUpdateCoordinator):
                 # Only one GIF, just display it
                 await self._upload_gif(gif_files[0], screen_size)
             else:
-                # Multiple GIFs - start rotation
-                self._gif_rotation_stop.clear()
-                self._gif_rotation_task = asyncio.create_task(
-                    self._gif_rotation_loop(gif_files, rotation_interval, loop, screen_size)
-                )
+                # Pick up to 12 random GIFs and batch upload them
+                batch = gif_files[:12]
+                _LOGGER.info(f"Batch uploading {len(batch)} random GIFs from {len(gif_files)} available")
+                success = await IDMGif().uploadBatch(batch, pixel_size=screen_size)
+                if not success:
+                    _LOGGER.error("Batch GIF upload failed")
         else:
             _LOGGER.error(f"Path does not exist: {path}")
 
