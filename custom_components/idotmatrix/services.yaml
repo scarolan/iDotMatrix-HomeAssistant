@@ -65,21 +65,15 @@ display_gif:
         text:
     rotation_interval:
       required: false
-      description: Time in seconds to display each GIF before rotating to the next (only used when path is a folder). Set to 0 to display all GIFs once without looping.
-      default: 10
+      description: Carousel interval - how long each GIF displays before advancing to the next (batch mode only). The device handles the rotation natively. Common values are 5, 10, 30, 60, or 300 seconds.
+      default: 5
       example: 10
       selector:
         number:
-          min: 0
-          max: 3600
+          min: 1
+          max: 255
           unit_of_measurement: seconds
           mode: box
-    loop:
-      required: false
-      description: Whether to continuously loop through GIFs in the folder. When false, stops after displaying all GIFs once.
-      default: true
-      selector:
-        boolean:
 
 stop_gif_rotation:
   name: Stop GIF Rotation

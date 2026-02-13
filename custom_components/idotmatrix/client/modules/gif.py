@@ -37,7 +37,8 @@ class Gif:
         return [data[i : i + chunk_size] for i in range(0, len(data), chunk_size)]
 
     def _createPayloads(
-        self, gif_data: bytearray, chunk_size: int = 4096, index: int = 0x0d
+        self, gif_data: bytearray, chunk_size: int = 4096, index: int = 0x0d,
+        interval: int = 5
     ) -> List[bytearray]:
         """Creates payloads from a GIF file.
 
@@ -46,6 +47,8 @@ class Gif:
             chunk_size (int): size of a chunk
             index (int): GIF index byte. 0x0d (13) for single uploads,
                          0-11 for batch uploads.
+            interval (int): Carousel interval in seconds (how long each GIF
+                            displays before advancing). Range 0-255.
 
         Returns:
             List[bytearray]: returns list of bytearray payloads
@@ -66,8 +69,8 @@ class Gif:
                 255,
                 255,
                 255,
-                5,    # [13] constant
-                0,    # [14] constant
+                interval & 0xFF,  # [13] carousel interval in seconds
+                0,    # [14] reserved
                 index & 0xFF,  # [15] index: 0x0d for single, GIF index for batch
             ]
         )
@@ -111,13 +114,15 @@ class Gif:
             self.logging.error(f"could not upload gif unprocessed: {error}")
             return False
 
-    def _processGif(self, file_path: str, pixel_size: int = 32, index: int = 0x0d) -> Union[bool, List[bytearray]]:
+    def _processGif(self, file_path: str, pixel_size: int = 32, index: int = 0x0d,
+                    interval: int = 5) -> Union[bool, List[bytearray]]:
         """Process a GIF file and create payloads (sync, for use in executor).
 
         Args:
             file_path (str): path to the image file
             pixel_size (int, optional): amount of pixels. Defaults to 32.
             index (int): GIF index byte for header[15].
+            interval (int): Carousel interval in seconds.
 
         Returns:
             Union[bool, List[bytearray]]: False if error, otherwise list of payload chunks
@@ -148,13 +153,14 @@ class Gif:
                     disposal=2,
                 )
                 gif_buffer.seek(0)
-                return self._createPayloads(gif_buffer.getvalue(), index=index)
+                return self._createPayloads(gif_buffer.getvalue(), index=index, interval=interval)
         except BaseException as error:
             self.logging.error(f"could not process gif: {error}")
             return False
 
     async def uploadProcessed(
-        self, file_path: str, pixel_size: int = 32, index: int = 0x0d
+        self, file_path: str, pixel_size: int = 32, index: int = 0x0d,
+        interval: int = 5
     ) -> Union[bool, bytearray]:
         """uploads a file processed to make sure everything is correct before uploading to the device.
 
@@ -162,6 +168,7 @@ class Gif:
             file_path (str): path to the image file
             pixel_size (int, optional): amount of pixels (either 16 or 32 makes sense). Defaults to 32.
             index (int): GIF index byte. 0x0d for single, 0-11 for batch.
+            interval (int): Carousel interval in seconds.
 
         Returns:
             Union[bool, bytearray]: False if there's an error, otherwise returns bytearray payload
@@ -169,7 +176,7 @@ class Gif:
         try:
             import asyncio
             loop = asyncio.get_event_loop()
-            data = await loop.run_in_executor(None, self._processGif, file_path, pixel_size, index)
+            data = await loop.run_in_executor(None, self._processGif, file_path, pixel_size, index, interval)
 
             if data is False:
                 return False
@@ -184,7 +191,7 @@ class Gif:
             return False
 
     async def uploadBatch(
-        self, file_paths: List[str], pixel_size: int = 32
+        self, file_paths: List[str], pixel_size: int = 32, interval: int = 5
     ) -> bool:
         """Upload multiple GIFs as a batch using the device's batch protocol.
 
@@ -193,6 +200,8 @@ class Gif:
         Args:
             file_paths: List of paths to GIF files (max 12).
             pixel_size: Pixel size for resizing (16 or 32). Defaults to 32.
+            interval: Carousel interval in seconds (how long each GIF displays
+                      before advancing to the next). Range 0-255. Defaults to 5.
 
         Returns:
             True if successful, False on error.
@@ -231,7 +240,7 @@ class Gif:
             loop = asyncio.get_event_loop()
             for i, file_path in enumerate(file_paths):
                 data = await loop.run_in_executor(
-                    None, self._processGif, file_path, pixel_size, i
+                    None, self._processGif, file_path, pixel_size, i, interval
                 )
                 if data is False:
                     self.logging.error(f"Failed to process GIF {i}: {file_path}")
@@ -240,7 +249,7 @@ class Gif:
                 for chunk in data:
                     await self.conn.send(data=chunk)
 
-            self.logging.info(f"Batch upload complete: {count} GIFs")
+            self.logging.info(f"Batch upload complete: {count} GIFs, interval={interval}s")
             return True
 
         except BaseException as error:

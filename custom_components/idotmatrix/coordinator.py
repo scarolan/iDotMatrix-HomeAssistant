@@ -811,20 +811,22 @@ class IDotMatrixCoordinator(DataUpdateCoordinator):
     async def async_display_gif(
         self,
         path: str,
-        rotation_interval: float = 10,
-        loop: bool = True,
+        rotation_interval: int = 5,
     ) -> None:
         """Display GIF(s) on the device.
 
         Args:
             path: Path to a single GIF file or a folder containing GIF files.
-            rotation_interval: Seconds between GIF rotations (folder mode only).
-            loop: Whether to loop through GIFs continuously.
+            rotation_interval: Carousel interval in seconds - how long each GIF
+                               displays before advancing to the next (batch mode).
+                               Common values: 5, 10, 30, 60, 300. Defaults to 5.
         """
         # Stop any existing rotation
         await self.async_stop_gif_rotation()
 
         screen_size = int(self.text_settings.get("screen_size", 32))
+        # Clamp interval to uint8 range
+        interval = max(1, min(255, int(rotation_interval)))
 
         # Check path type in executor to avoid blocking
         is_file = await self.hass.async_add_executor_job(os.path.isfile, path)
@@ -857,8 +859,13 @@ class IDotMatrixCoordinator(DataUpdateCoordinator):
             else:
                 # Pick up to 12 random GIFs and batch upload them
                 batch = gif_files[:12]
-                _LOGGER.info(f"Batch uploading {len(batch)} random GIFs from {len(gif_files)} available")
-                success = await IDMGif().uploadBatch(batch, pixel_size=screen_size)
+                _LOGGER.info(
+                    f"Batch uploading {len(batch)} random GIFs from "
+                    f"{len(gif_files)} available, interval={interval}s"
+                )
+                success = await IDMGif().uploadBatch(
+                    batch, pixel_size=screen_size, interval=interval
+                )
                 if not success:
                     _LOGGER.error("Batch GIF upload failed")
         else:

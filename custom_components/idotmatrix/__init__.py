@@ -299,8 +299,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def async_display_gif(call):
         """Handle the display_gif service call."""
         path = call.data.get("path")
-        rotation_interval = call.data.get("rotation_interval", 10)
-        loop = call.data.get("loop", True)
+        rotation_interval = call.data.get("rotation_interval", 5)
 
         if not path:
             _LOGGER.error("display_gif service requires 'path' parameter")
@@ -312,7 +311,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 await coordinator.async_display_gif(
                     path=path,
                     rotation_interval=rotation_interval,
-                    loop=loop,
                 )
 
     hass.services.async_register(DOMAIN, "display_gif", async_display_gif)

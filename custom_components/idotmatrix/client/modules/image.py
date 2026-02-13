@@ -71,8 +71,8 @@ class Image:
                 255,
                 255,
                 255,
-                5,    # [13] constant
-                0,    # [14] constant
+                5,    # [13] carousel interval in seconds (default 5)
+                0,    # [14] reserved
                 0x0d, # [15] single upload marker
             ]
         )

@@ -23,6 +23,7 @@ class IDotMatrixCard extends LitElement {
       _savedDesigns: { type: Object, state: true },
       _selectedDesign: { type: String, state: true },
       _gifPath: { type: String, state: true },
+      _gifInterval: { type: Number, state: true },
       _gifStatus: { type: String, state: true },
     };
   }
@@ -177,13 +178,32 @@ class IDotMatrixCard extends LitElement {
       }
       .gif-controls {
         display: flex;
+        flex-direction: column;
         gap: 8px;
-        align-items: flex-end;
-        flex-wrap: wrap;
       }
       .gif-controls ha-textfield {
-        flex: 1;
-        min-width: 200px;
+        width: 100%;
+      }
+      .gif-options-row {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .gif-interval-label {
+        font-size: 13px;
+        color: var(--primary-text-color);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .gif-interval-select {
+        padding: 4px 8px;
+        border-radius: 4px;
+        border: 1px solid var(--divider-color);
+        background: var(--card-background-color, #fff);
+        color: var(--primary-text-color);
+        font-size: 13px;
       }
       .gif-status {
         font-size: 12px;
@@ -217,6 +237,7 @@ class IDotMatrixCard extends LitElement {
     this._selectedDesign = "";
     this._triggerUnsub = null;
     this._gifPath = "";
+    this._gifInterval = 5;
     this._gifStatus = "";
   }
 
@@ -479,13 +500,25 @@ class IDotMatrixCard extends LitElement {
                 @input=${(e) => { this._gifPath = e.target.value; this._gifStatus = ""; }}
                 placeholder="/media/idotmatrix/gifs/"
               ></ha-textfield>
-              <mwc-button raised @click=${this._sendGif}>
-                <ha-icon icon="mdi:file-gif-box"></ha-icon>
-                Send GIFs
-              </mwc-button>
+              <div class="gif-options-row">
+                <label class="gif-interval-label">Carousel interval:
+                  <select class="gif-interval-select" .value=${String(this._gifInterval)}
+                    @change=${(e) => { this._gifInterval = parseInt(e.target.value); }}>
+                    <option value="5">5s</option>
+                    <option value="10">10s</option>
+                    <option value="30">30s</option>
+                    <option value="60">1 min</option>
+                    <option value="300">5 min</option>
+                  </select>
+                </label>
+                <mwc-button raised @click=${this._sendGif}>
+                  <ha-icon icon="mdi:file-gif-box"></ha-icon>
+                  Send GIFs
+                </mwc-button>
+              </div>
             </div>
             <p class="gif-hint">
-              Single file: sends one GIF. Folder: picks up to 12 random GIFs and batch uploads them (device loops automatically).
+              Single file: sends one GIF. Folder: picks up to 12 random GIFs and batch uploads them. Device loops automatically at the selected interval.
             </p>
             ${this._gifStatus ? html`
               <div class="gif-status ${this._gifStatus.startsWith("Error") ? "error" : "success"}">
@@ -849,6 +882,7 @@ class IDotMatrixCard extends LitElement {
     try {
       await this.hass.callService("idotmatrix", "display_gif", {
         path: this._gifPath,
+        rotation_interval: this._gifInterval,
       });
       this._gifStatus = "Sent!";
     } catch (e) {
