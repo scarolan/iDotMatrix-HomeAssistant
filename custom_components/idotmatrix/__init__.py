@@ -113,13 +113,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     # Automatically register the Lovelace card resource (storage mode only).
+    async def _on_homeassistant_started(event):
+        """Handle Home Assistant started event."""
+        await _async_register_lovelace_resource(hass)
+
     if hass.is_running:
-        hass.async_create_task(_async_register_lovelace_resource(hass))
+        await _async_register_lovelace_resource(hass)
     else:
-        hass.bus.async_listen_once(
-            EVENT_HOMEASSISTANT_STARTED,
-            lambda event: hass.async_create_task(_async_register_lovelace_resource(hass)),
-        )
+        hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, _on_homeassistant_started)
 
     async def async_set_face(call):
         """Handle the set_face service call."""
