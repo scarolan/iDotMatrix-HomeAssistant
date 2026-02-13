@@ -42,7 +42,14 @@ async def _async_register_lovelace_resource(hass: HomeAssistant) -> None:
         # Lovelace not loaded
         return
 
-    resources = lovelace_data.get("resources")
+    # Handle both old dict-style and new LovelaceData object
+    if hasattr(lovelace_data, "resources"):
+        resources = lovelace_data.resources
+    elif isinstance(lovelace_data, dict):
+        resources = lovelace_data.get("resources")
+    else:
+        return
+
     if not resources or not hasattr(resources, "async_create_item"):
         # Likely YAML mode
         return
