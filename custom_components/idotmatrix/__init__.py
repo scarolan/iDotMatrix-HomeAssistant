@@ -58,15 +58,18 @@ async def _async_register_lovelace_resource(hass: HomeAssistant) -> None:
         await resources.async_load()
         resources.loaded = True
 
-    # Get version from manifest
-    try:
-        import json
-        manifest_path = os.path.join(os.path.dirname(__file__), "manifest.json")
-        with open(manifest_path, 'r') as f:
-            manifest = json.load(f)
-            version = manifest.get("version", "0.0.0")
-    except Exception:
-        version = "0.0.0"
+    # Get version from manifest (use executor to avoid blocking)
+    def _read_manifest_version():
+        try:
+            import json
+            manifest_path = os.path.join(os.path.dirname(__file__), "manifest.json")
+            with open(manifest_path, 'r') as f:
+                manifest = json.load(f)
+                return manifest.get("version", "0.0.0")
+        except Exception:
+            return "0.0.0"
+
+    version = await hass.async_add_executor_job(_read_manifest_version)
 
     # Append version to URL for cache busting
     card_url = f"{_CARD_RESOURCE_URL}?v={version}"
