@@ -834,11 +834,11 @@ class IDotMatrixCoordinator(DataUpdateCoordinator):
 
         # Determine if path is a file or directory
         if is_file:
-            # Single file — use batch protocol with count=1 for consistency
-            _LOGGER.info(f"Uploading single GIF via batch protocol: {path}")
-            success = await IDMGif().uploadBatch(
-                [path], pixel_size=screen_size, interval=interval
-            )
+            # Single file: use single upload protocol (index=0x0d, no batch
+            # commands).  This gives the device its full GIF buffer instead of
+            # the smaller per-slot batch buffer (~7 KB).
+            _LOGGER.info(f"Uploading single GIF (single protocol): {path}")
+            success = await IDMGif().uploadSingleRaw(path)
             if not success:
                 _LOGGER.error(f"Single GIF upload failed: {path}")
         elif is_dir:
@@ -865,7 +865,7 @@ class IDotMatrixCoordinator(DataUpdateCoordinator):
                 f"{len(gif_files)} available, interval={interval}s"
             )
             success = await IDMGif().uploadBatch(
-                batch, pixel_size=screen_size, interval=interval
+                batch, pixel_size=screen_size, interval=interval, raw=True
             )
             if not success:
                 _LOGGER.error("Batch GIF upload failed")

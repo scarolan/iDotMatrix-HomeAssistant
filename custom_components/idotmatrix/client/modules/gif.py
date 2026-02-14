@@ -129,25 +129,33 @@ class Gif:
         """
         try:
             with PilImage.open(file_path) as img:
-                frames = []
+                frames_rgb = []
                 duration = img.info.get("duration", 100)
                 try:
                     while True:
-                        frame = img.copy()
+                        frame = img.copy().convert("RGB")
                         if frame.size != (pixel_size, pixel_size):
                             frame = frame.resize(
                                 (pixel_size, pixel_size), PilImage.NEAREST
                             )
-                        frames.append(frame.copy())
+                        frames_rgb.append(frame)
                         img.seek(img.tell() + 1)
                 except EOFError:
                     pass
+
+                # Quantize all frames to a single shared palette (no LCTs).
+                # The device parser only supports a Global Color Table.
+                palette_img = frames_rgb[0].quantize(colors=256)
+                frames_p = []
+                for rgb_frame in frames_rgb:
+                    frames_p.append(rgb_frame.quantize(palette=palette_img))
+
                 gif_buffer = io.BytesIO()
-                frames[0].save(
+                frames_p[0].save(
                     gif_buffer,
                     format="GIF",
                     save_all=True,
-                    append_images=frames[1:],
+                    append_images=frames_p[1:],
                     loop=0,
                     duration=duration,
                     disposal=2,
@@ -182,27 +190,61 @@ class Gif:
                 return False
 
             if self.conn:
-                import asyncio
                 await self.conn.connect()
-                self.logging.info(f"Uploading {len(data)} chunks, connected={self.conn.client and self.conn.client.is_connected}")
-                sent = 0
                 for chunk in data:
-                    result = await self.conn.send(data=chunk)
-                    if result:
-                        sent += 1
-                    else:
-                        self.logging.error(f"Send failed at chunk {sent}/{len(data)}, connected={self.conn.client and self.conn.client.is_connected}")
-                        break
-                    # Pace chunk sends so the BLE proxy can flush to the radio
-                    await asyncio.sleep(0.1)
-                self.logging.info(f"Sent {sent}/{len(data)} chunks")
+                    result = await self.conn.send(data=chunk, response=True)
+                    if not result:
+                        self.logging.error("Send failed during GIF upload")
+                        return False
+                self.logging.info(f"GIF upload complete: {len(data)} chunks sent")
             return data
         except BaseException as error:
             self.logging.error(f"could not upload gif processed: {error}")
             return False
 
+    async def uploadSingleRaw(self, file_path: str) -> bool:
+        """Upload a single raw GIF using the single upload protocol (no batch commands).
+
+        Uses index=0x0d which tells the device this is a standalone GIF, giving
+        it access to the full GIF buffer (not the smaller per-slot batch buffer).
+
+        Args:
+            file_path: Path to the GIF file.
+
+        Returns:
+            True if successful, False on error.
+        """
+        import asyncio
+
+        try:
+            if not self.conn:
+                return False
+
+            await self.conn.connect()
+
+            loop = asyncio.get_event_loop()
+            gif_data = await loop.run_in_executor(None, self._load, file_path)
+            data = self._createPayloads(gif_data, index=0x0d)
+
+            for chunk in data:
+                # Use response=True for flow control through BLE proxy.
+                # Without it, the proxy's BLE transmit buffer overflows for
+                # large files and silently drops packets.  Slower but reliable.
+                result = await self.conn.send(data=chunk, response=True)
+                if not result:
+                    self.logging.error("Send failed during single GIF upload")
+                    return False
+
+            self.logging.info(f"Single GIF upload complete: {len(data)} chunks, {len(gif_data)} bytes")
+            return True
+
+        except BaseException as error:
+            self.logging.error(f"Single GIF upload failed: {error}")
+            return False
+
     async def uploadBatch(
-        self, file_paths: List[str], pixel_size: int = 32, interval: int = 5
+        self, file_paths: List[str], pixel_size: int = 32, interval: int = 5,
+        raw: bool = False
     ) -> bool:
         """Upload multiple GIFs as a batch using the device's batch protocol.
 
@@ -213,6 +255,7 @@ class Gif:
             pixel_size: Pixel size for resizing (16 or 32). Defaults to 32.
             interval: Carousel interval in seconds (how long each GIF displays
                       before advancing to the next). Range 0-255. Defaults to 5.
+            raw: If True, send raw file bytes without Pillow re-encoding.
 
         Returns:
             True if successful, False on error.
@@ -247,18 +290,31 @@ class Gif:
             await self.conn.send(data=batch_header)
             await asyncio.sleep(0.1)
 
-            # 3. Process and stream all GIFs back-to-back
+            # 3. Process and stream all GIFs with BLE-paced writes
             loop = asyncio.get_event_loop()
             for i, file_path in enumerate(file_paths):
-                data = await loop.run_in_executor(
-                    None, self._processGif, file_path, pixel_size, i, interval
-                )
+                if raw:
+                    # Send raw file bytes without Pillow re-encoding
+                    gif_data = await loop.run_in_executor(None, self._load, file_path)
+                    data = self._createPayloads(gif_data, index=i, interval=interval)
+                else:
+                    data = await loop.run_in_executor(
+                        None, self._processGif, file_path, pixel_size, i, interval
+                    )
                 if data is False:
                     self.logging.error(f"Failed to process GIF {i}: {file_path}")
                     return False
 
                 for chunk in data:
-                    await self.conn.send(data=chunk)
+                    result = await self.conn.send(data=chunk, response=True)
+                    if not result:
+                        self.logging.error(f"Send failed at GIF {i}")
+                        return False
+
+                self.logging.info(f"GIF {i+1}/{count} uploaded ({len(data)} chunks, {'raw' if raw else 'processed'})")
+                # Brief pause between GIF files (~100-150ms seen in Android capture)
+                if i < count - 1:
+                    await asyncio.sleep(0.15)
 
             self.logging.info(f"Batch upload complete: {count} GIFs, interval={interval}s")
             return True

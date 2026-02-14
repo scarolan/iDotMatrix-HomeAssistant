@@ -118,12 +118,24 @@ class ConnectionManager(metaclass=SingletonMeta):
             await self.client.disconnect()
             self.logging.info(f"disconnected from {self.address}")
 
+    # Match the Android app's BLE write size (MTU 517 - ATT overhead = 509)
+    BLE_WRITE_SIZE = 509
+
     async def send(self, data, response=False):
         if self.client and self.client.is_connected:
             self.logging.debug("sending message(s) to device")
-            chunk_size = self.client.services.get_characteristic(UUID_WRITE_DATA).max_write_without_response_size
+            # Cap chunk size to real BLE MTU regardless of proxy-reported size.
+            # ESPHome BLE proxies report a large WiFi-based MTU, but the actual
+            # BLE radio to the device uses ~509-byte packets at ~25ms intervals.
+            reported = self.client.services.get_characteristic(UUID_WRITE_DATA).max_write_without_response_size
+            chunk_size = min(reported, self.BLE_WRITE_SIZE)
             for i in range(0, len(data), chunk_size):
                 await self.client.write_gatt_char(UUID_WRITE_DATA, data[i:i+chunk_size], response=response)
+                # Pace writes to match the BLE connection interval (~25ms).
+                # The Android app's BLE stack provides this pacing via L2CAP
+                # flow control; through an ESPHome proxy we must add it manually
+                # to prevent flooding the proxy's BLE transmit buffer.
+                await asyncio.sleep(0.025)
 
             return True
 
