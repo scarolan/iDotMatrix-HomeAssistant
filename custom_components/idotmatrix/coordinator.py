@@ -837,7 +837,7 @@ class IDotMatrixCoordinator(DataUpdateCoordinator):
             # Single file: use single upload protocol (index=0x0d, no batch
             # commands).  This gives the device its full GIF buffer instead of
             # the smaller per-slot batch buffer (~7 KB).
-            _LOGGER.info(f"Uploading single GIF (single protocol): {path}")
+            _LOGGER.debug(f"Uploading single GIF (single protocol): {path}")
             success = await IDMGif().uploadSingleRaw(path)
             if not success:
                 _LOGGER.error(f"Single GIF upload failed: {path}")
@@ -860,7 +860,7 @@ class IDotMatrixCoordinator(DataUpdateCoordinator):
 
             # Batch upload (works for 1 or many)
             batch = gif_files[:12]
-            _LOGGER.info(
+            _LOGGER.debug(
                 f"Batch uploading {len(batch)} GIFs from "
                 f"{len(gif_files)} available, interval={interval}s"
             )

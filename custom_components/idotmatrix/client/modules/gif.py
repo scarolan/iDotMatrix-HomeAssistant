@@ -196,7 +196,7 @@ class Gif:
                     if not result:
                         self.logging.error("Send failed during GIF upload")
                         return False
-                self.logging.info(f"GIF upload complete: {len(data)} chunks sent")
+                self.logging.debug(f"GIF upload complete: {len(data)} chunks sent")
             return data
         except BaseException as error:
             self.logging.error(f"could not upload gif processed: {error}")
@@ -235,7 +235,7 @@ class Gif:
                     self.logging.error("Send failed during single GIF upload")
                     return False
 
-            self.logging.info(f"Single GIF upload complete: {len(data)} chunks, {len(gif_data)} bytes")
+            self.logging.debug(f"Single GIF upload complete: {len(data)} chunks, {len(gif_data)} bytes")
             return True
 
         except BaseException as error:
@@ -311,12 +311,12 @@ class Gif:
                         self.logging.error(f"Send failed at GIF {i}")
                         return False
 
-                self.logging.info(f"GIF {i+1}/{count} uploaded ({len(data)} chunks, {'raw' if raw else 'processed'})")
+                self.logging.debug(f"GIF {i+1}/{count} uploaded ({len(data)} chunks, {'raw' if raw else 'processed'})")
                 # Brief pause between GIF files (~100-150ms seen in Android capture)
                 if i < count - 1:
                     await asyncio.sleep(0.15)
 
-            self.logging.info(f"Batch upload complete: {count} GIFs, interval={interval}s")
+            self.logging.debug(f"Batch upload complete: {count} GIFs, interval={interval}s")
             return True
 
         except BaseException as error:

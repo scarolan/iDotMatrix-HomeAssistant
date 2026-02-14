@@ -123,7 +123,7 @@ class ConnectionManager(metaclass=SingletonMeta):
 
     async def send(self, data, response=False):
         if self.client and self.client.is_connected:
-            self.logging.debug("sending message(s) to device")
+            self.logging.debug("sending %d bytes to device", len(data))
             # Cap chunk size to real BLE MTU regardless of proxy-reported size.
             # ESPHome BLE proxies report a large WiFi-based MTU, but the actual
             # BLE radio to the device uses ~509-byte packets at ~25ms intervals.
