@@ -138,10 +138,68 @@ Examples:
 - **Sync Time**: Press `button.<device>_sync_time` to sync the device clock to Home Assistant's time.
 - **Formats**: Toggle `select.<device>_clock_format` (12h/24h) and `switch.<device>_clock_show_date`.
 
+### GIF Animations
+
+Display animated GIFs on your device — single files or rotating carousels.
+
+**Single GIF:**
+```yaml
+action: idotmatrix.display_gif
+data:
+  path: /config/www/idotmatrix/gifs/Pac-man.gif
+```
+
+**Carousel (folder of GIFs):**
+```yaml
+action: idotmatrix.display_gif
+data:
+  path: /config/www/idotmatrix/gifs
+  rotation_interval: 10
+```
+
+- `path`: A single `.gif` file or a folder containing GIF files.
+- `rotation_interval`: How many seconds each GIF displays before advancing (1-255, default 5). The device handles rotation natively in hardware.
+- When given a folder, up to 12 random GIFs are uploaded as a batch and the device loops through them automatically.
+- To stop a running carousel: call `idotmatrix.stop_gif_rotation`.
+
+**Preparing your GIFs:**
+
+The display is 64x64 pixels. Any standard GIF works — the device handles GIF89a, animated GIFs, transparency, and all standard features. For best results, resize your source GIFs to 64x64 before uploading to save transfer time:
+
+```bash
+# Requires: gifsicle (apt install gifsicle / brew install gifsicle)
+# Resize all GIFs in a folder to 64x64
+for gif in *.gif; do
+  gifsicle --resize 64x64 -O3 "$gif" -o "optimized/$gif"
+done
+```
+
+Larger files work fine — they just take longer to transfer over Bluetooth. A 60KB GIF takes roughly 10-15 seconds through a proxy.
+
+**Automation example — rotate GIFs on a schedule:**
+```yaml
+automation:
+  - alias: "iDotMatrix GIF rotation"
+    trigger:
+      - platform: time_pattern
+        hours: "/1"  # Every hour
+    action:
+      - action: idotmatrix.display_gif
+        data:
+          path: /config/www/idotmatrix/gifs
+          rotation_interval: 30
+```
+
 ### Bluetooth Proxy
-This integration fully supports **ESPHome Bluetooth Proxies**.
+
+This integration fully supports **ESPHome Bluetooth Proxies** and is the recommended setup for most users.
+
 - If your Home Assistant server is far from the device, use a cheap ESP32 with ESPHome to extend range.
 - The integration will automatically find and use the proxy with the best signal.
+- **Recommended hardware**: Any ESP32 board running ESPHome with `bluetooth_proxy` enabled. The [M5Stack Atom Lite](https://esphome.github.io/bluetooth-proxies/) is a great compact option.
+- GIF uploads use BLE Write Requests (with acknowledgment) for reliable delivery through the proxy. This is slower than a direct Bluetooth connection but rock-solid.
+
+**Direct Bluetooth** is also supported. If your HA server has a Bluetooth adapter and is within range (~10m), the device will connect directly with faster transfer speeds.
 
 ---
 
@@ -151,6 +209,17 @@ This integration fully supports **ESPHome Bluetooth Proxies**.
 - Ensure the device is **disconnected** from the mobile app. It can only talk to one controller at a time.
 - If using a local adapter on macOS/Linux, ensure BlueZ is up to date.
 - Restart the iDotMatrix device (unplug/replug).
+- If using an ESPHome proxy, check that the proxy is online and within range of the display.
+
+**GIF not displaying / screen goes blank**
+- Power cycle the iDotMatrix device. A failed upload can leave it in a bad state.
+- Ensure the GIF file exists at the path specified (paths are relative to the HA container).
+- Place GIF files in `/config/www/idotmatrix/gifs/` for easy access.
+
+**GIF uploads are slow**
+- This is expected when using a Bluetooth proxy. Each BLE packet must round-trip through WiFi -> proxy -> BLE -> device and back. A 60KB file takes ~10-15 seconds.
+- For faster uploads, use a direct Bluetooth adapter on your HA server instead of a proxy.
+- Pre-resize GIFs to 64x64 to minimize file size and transfer time.
 
 **Icons not showing**
 - For `mdi:` icons, make sure Home Assistant has internet access on first render (the font + metadata are fetched and cached in memory).
@@ -164,5 +233,6 @@ This integration fully supports **ESPHome Bluetooth Proxies**.
 ---
 
 <p align="center">
-  Built with ❤️ by Tukies, based on great work of @derkalle4 who created python interface to communicate with iDotMatrix. 
+  Built with love by Tukies, based on great work of @derkalle4 who created python interface to communicate with iDotMatrix.<br>
+  GIF upload and BLE proxy support by @scarolan.
 </p>
