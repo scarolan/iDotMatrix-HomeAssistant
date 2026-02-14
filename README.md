@@ -176,18 +176,47 @@ done
 
 Larger files work fine — they just take longer to transfer over Bluetooth. A 60KB GIF takes roughly 10-15 seconds through a proxy.
 
-**Automation example — rotate GIFs on a schedule:**
+**Automation examples:**
+
+Start the GIF carousel on HA boot (with a 1-minute delay for Bluetooth to initialize):
 ```yaml
 automation:
-  - alias: "iDotMatrix GIF rotation"
-    trigger:
-      - platform: time_pattern
-        hours: "/1"  # Every hour
-    action:
+  - alias: "Start GIF Rotation on Boot"
+    triggers:
+      - trigger: homeassistant
+        event: start
+    actions:
+      - delay: "00:01:00"
       - action: idotmatrix.display_gif
         data:
           path: /config/www/idotmatrix/gifs
-          rotation_interval: 30
+          rotation_interval: 60
+```
+
+Restart the carousel every morning (in case it stopped overnight):
+```yaml
+  - alias: "Start GIF Rotation in Morning"
+    triggers:
+      - trigger: time
+        at: "06:05:00"
+    actions:
+      - action: idotmatrix.display_gif
+        data:
+          path: /config/www/idotmatrix/gifs
+          rotation_interval: 60
+```
+
+Watchdog — re-upload a fresh batch every hour to keep things interesting:
+```yaml
+  - alias: "GIF Rotation Watchdog"
+    triggers:
+      - trigger: time_pattern
+        hours: "/1"
+    actions:
+      - action: idotmatrix.display_gif
+        data:
+          path: /config/www/idotmatrix/gifs
+          rotation_interval: 60
 ```
 
 ### Bluetooth Proxy
